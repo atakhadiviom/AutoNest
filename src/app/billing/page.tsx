@@ -91,14 +91,18 @@ function PayPalPaymentButtons({
   };
   
   const onError: PayPalButtonsComponentProps['onError'] = (err) => {
-    console.error("[PayPalButtons] onError triggered (This indicates an ERROR from PayPal before or during the payment flow). Raw error object:", err);
-    // Check if the error message indicates a user cancellation by closing the window
     const errorMessage = typeof err === 'string' ? err : (err as Error)?.message || JSON.stringify(err);
-    if (errorMessage.toLowerCase().includes("window closed") || errorMessage.toLowerCase().includes("popup closed")) {
-        console.log("[PayPal Buttons] onError: Detected PayPal window closed by user or popup interaction. Treating as cancellation.");
-        onPaymentCancel(); // Call the dedicated cancel handler
+    const lowerCaseErrorMessage = errorMessage.toLowerCase();
+
+    if (lowerCaseErrorMessage.includes("window closed") || lowerCaseErrorMessage.includes("popup closed")) {
+        // It's a "window closed" error, which we treat as a cancellation.
+        // Log it for debugging but not as a severe application error that needs console.error.
+        console.log("[PayPalButtons] onError (interpreted as cancellation): PayPal window was closed.", err);
+        onPaymentCancel(); // Call the parent's cancellation handler
     } else {
-        onPaymentError(err); // Pass the raw error object for other types of errors
+        // It's some other PayPal button error. Log it as an error and pass it to the parent's error handler.
+        console.error("[PayPalButtons] onError (unexpected PayPal button error):", err);
+        onPaymentError(err); // Call the parent's generic error handler
     }
     setPaymentProcessingParent(false);
   };
@@ -133,7 +137,7 @@ function PayPalPaymentButtons({
       style={{ 
         shape: "rect",
         layout: "vertical",
-        color: "gold", // Changed from blue to gold
+        color: "gold", 
         label: "paypal",
       }}
       createOrder={createOrder}
@@ -187,14 +191,9 @@ export default function BillingPage() {
     
     const lowerCaseMessage = message.toLowerCase();
 
-    if (lowerCaseMessage.includes("window closed") || lowerCaseMessage.includes("popup closed")) {
-      setPaymentError("Payment process was cancelled or the window was closed before completion.");
-      toast({
-        title: "Payment Cancelled",
-        description: "The payment window was closed before completion.",
-        variant: "default",
-      });
-    } else if (lowerCaseMessage.includes("can not open popup window - blocked") || lowerCaseMessage.includes("popup was blocked")) {
+    // Note: "window closed" specific handling is now primarily done within PayPalPaymentButtons' onError and onCancel.
+    // This handler will deal with errors propagated from there, or other payment-related errors.
+    if (lowerCaseMessage.includes("can not open popup window - blocked") || lowerCaseMessage.includes("popup was blocked")) {
       setPaymentError("PayPal popup window was blocked. Please check your browser settings and disable popup blockers for this site, then try again.");
       toast({
         title: "Popup Blocked",
@@ -202,6 +201,7 @@ export default function BillingPage() {
         variant: "destructive",
       });
     } else {
+      // For generic errors or errors passed up from PayPalPaymentButtons that weren't "window closed".
       setPaymentError(`Payment Error: ${message}`);
       toast({
         title: "Payment Failed",
@@ -212,10 +212,11 @@ export default function BillingPage() {
   };
 
   const handlePaymentCancel = () => {
-    setPaymentError("Payment process was cancelled by user.");
+    // This is called when PayPalButtons' onCancel is triggered, or when its onError detects a "window closed" scenario.
+    setPaymentError("Payment process was cancelled or the window was closed before completion.");
     toast({
         title: "Payment Cancelled",
-        description: "You have cancelled the payment process.",
+        description: "The payment window was closed before completion or the process was cancelled.",
         variant: "default",
     });
   };
@@ -240,12 +241,12 @@ export default function BillingPage() {
   const scriptProviderOptions = {
     "client-id": PAYPAL_CLIENT_ID,
     currency: "USD",
-    "enable-funding": "venmo", // Added from sample
-    "disable-funding": "", // Changed from "credit,card" to empty string as per sample
-    "buyer-country": "US", // Added from sample
-    components: "buttons", // Added from sample
-    "data-page-type": "product-details", // Added from sample
-    "data-sdk-integration-source": "developer-studio", // Added from sample
+    "enable-funding": "venmo",
+    "disable-funding": "", 
+    "buyer-country": "US", 
+    components: "buttons", 
+    "data-page-type": "product-details", 
+    "data-sdk-integration-source": "developer-studio", 
   };
 
   return (
@@ -278,7 +279,7 @@ export default function BillingPage() {
             <CardDescription>
               Securely add credits to your account using PayPal Sandbox. ({CREDITS_PER_DOLLAR} Credits = $1.00 USD)
             </CardDescription>
-             {(!PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER_REPLACE_ME" ) && (
+             {(!PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID.startsWith("YOUR_SANDBOX_CLIENT_ID") ) && (
                 <Alert variant="destructive" className="mt-2">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>PayPal Not Configured</AlertTitle>
@@ -313,7 +314,7 @@ export default function BillingPage() {
             {paymentError && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Payment System Error</AlertTitle>
+                <AlertTitle>Payment System Information</AlertTitle>
                 <AlertDescription>{paymentError}</AlertDescription>
               </Alert>
             )}
@@ -344,7 +345,7 @@ export default function BillingPage() {
                 </AlertDescription>
               </Alert>
             )}
-             {paymentError && !PAYPAL_CLIENT_ID.startsWith("YOUR_SANDBOX_CLIENT_ID_") && ( 
+             {paymentError && PAYPAL_CLIENT_ID && !PAYPAL_CLIENT_ID.startsWith("YOUR_SANDBOX_CLIENT_ID") && ( 
                 <Button onClick={() => window.location.reload()} variant="outline" className="mt-2">
                     <RefreshCw className="mr-2 h-4 w-4"/> Try Reloading Page
                 </Button>
@@ -398,3 +399,4 @@ export default function BillingPage() {
     </AppLayout>
   );
 }
+
