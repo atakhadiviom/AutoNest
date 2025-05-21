@@ -56,7 +56,7 @@ function PayPalPaymentButtons({
 
   useEffect(() => {
     if (isRejected) {
-      const detailedErrorMessage = "The PayPal payment system failed to load. This can be due to network issues, ad-blockers, or problems reaching PayPal's services. Please check your internet connection, disable any ad-blockers for this site, and try refreshing the page. If the problem persists, PayPal might be experiencing temporary issues.";
+      const detailedErrorMessage = "The PayPal payment system failed to load. This can be due to network issues, ad-blockers, or problems reaching PayPal's services. Please check your internet connection, disable any ad-blockers for this site, ensure your PayPal Client ID is correctly set, and try refreshing the page. If the problem persists, PayPal might be experiencing temporary issues.";
       console.error("[PayPalPaymentButtons] PayPal SDK script load failed (isRejected=true by PayPalScriptProvider). Propagating detailed error to parent. SDK Options used:", scriptOptions);
       onPaymentError(new Error(detailedErrorMessage));
     }
@@ -73,13 +73,13 @@ function PayPalPaymentButtons({
           variant: "destructive",
       });
       console.error("[PayPalButtons] createOrder error:", errorMsg, "Credits:", creditsToPurchase);
-      onPaymentError(new Error(errorMsg)); 
-      setPaymentProcessingParent(false); 
-      return Promise.reject(new Error(errorMsg)); 
+      onPaymentError(new Error(errorMsg));
+      setPaymentProcessingParent(false);
+      return Promise.reject(new Error(errorMsg));
     }
 
     setPaymentProcessingParent(true);
-    onPaymentError(null); 
+    onPaymentError(null);
 
     const purchaseUnits = [{
       amount: {
@@ -99,9 +99,9 @@ function PayPalPaymentButtons({
       return orderID;
     }).catch(err => {
       console.error("[PayPalButtons] Error in actions.order.create():", { error: err, creditsToPurchase, dollarAmount });
-      onPaymentError(err); 
-      setPaymentProcessingParent(false); 
-      throw err; 
+      onPaymentError(err);
+      setPaymentProcessingParent(false);
+      throw err;
     });
   };
 
@@ -124,7 +124,7 @@ function PayPalPaymentButtons({
         toast({
             title: "Payment Method Declined",
             description: "Your payment method was declined. Please select a different funding source or try again.",
-            variant: "default", 
+            variant: "default",
         });
         return actions.restart();
       }
@@ -175,11 +175,11 @@ function PayPalPaymentButtons({
 
   return (
     <PayPalButtons
-      key={dollarAmount} 
+      key={dollarAmount}
       style={{
         shape: "pill",
         layout: "vertical",
-        color: "blue",   
+        color: "blue",
         label: "paypal",
       }}
       createOrder={createOrder}
@@ -196,6 +196,8 @@ export default function BillingPage() {
   const { user, loading: authLoading, addCredits } = useAuth();
   const { toast } = useToast();
 
+  console.log("[BillingPage] Attempting to use PAYPAL_CLIENT_ID:", PAYPAL_CLIENT_ID);
+
   const [creditsToPurchase, setCreditsToPurchase] = useState<number>(100);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -205,7 +207,7 @@ export default function BillingPage() {
   const handleCreditAmountChange = (e: ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value, 10);
     setCreditsToPurchase(isNaN(value) || value < 1 ? 1 : value);
-    setPaymentError(null); 
+    setPaymentError(null);
   };
 
   const handlePaymentSuccess = (details: any) => {
@@ -220,7 +222,7 @@ export default function BillingPage() {
   };
 
   const handlePaymentError = (err: any | null) => {
-    if (err === null) { 
+    if (err === null) {
         setPaymentError(null);
         return;
     }
@@ -237,10 +239,10 @@ export default function BillingPage() {
     const lowerCaseMessage = message.toLowerCase();
 
     if (message.startsWith("The PayPal payment system failed to load")) {
-      setPaymentError(message);
+      setPaymentError(message); // message already contains detailed info including Client ID check hint
       toast({
         title: "PayPal Load Error",
-        description: "Could not load PayPal services. Please see the message on the page for details.", 
+        description: "Could not load PayPal services. Please see the message on the page for details.",
         variant: "destructive",
       });
     } else if (lowerCaseMessage.includes("popup window was blocked") || lowerCaseMessage.includes("can not open popup window - blocked")) {
@@ -300,12 +302,12 @@ export default function BillingPage() {
   const scriptProviderOptions = {
     "client-id": PAYPAL_CLIENT_ID,
     currency: "USD",
-    "enable-funding": "card", 
-    "disable-funding": "venmo,paylater", 
-    "buyer-country": "US", 
-    components: "buttons", 
-    "data-page-type": "product-details", 
-    "data-sdk-integration-source": "developer-studio", 
+    "enable-funding": "card",
+    "disable-funding": "venmo,paylater",
+    "buyer-country": "US",
+    components: "buttons",
+    "data-page-type": "product-details",
+    "data-sdk-integration-source": "developer-studio",
   };
 
   const isPaypalConfigured = PAYPAL_CLIENT_ID && PAYPAL_CLIENT_ID !== "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID";
@@ -345,7 +347,7 @@ export default function BillingPage() {
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>PayPal Not Configured</AlertTitle>
                     <AlertDescription>
-                    The PayPal Client ID is a placeholder or missing. Please set NEXT_PUBLIC_PAYPAL_CLIENT_ID in your environment variables. This section will not function until a valid Client ID is provided.
+                    The PayPal Client ID is a placeholder or missing. Please set NEXT_PUBLIC_PAYPAL_CLIENT_ID in your environment variables to enable payments.
                     </AlertDescription>
                 </Alert>
             )}
@@ -386,7 +388,7 @@ export default function BillingPage() {
                   <Spinner size={32} />
                   <p className="ml-2">Processing payment...</p>
                 </div>
-              ) : !paymentError || (paymentError && creditsToPurchase > 0) ? ( 
+              ) : !paymentError || (paymentError && creditsToPurchase > 0) ? (
                  <PayPalScriptProvider options={scriptProviderOptions}>
                     <PayPalPaymentButtons
                         creditsToPurchase={creditsToPurchase}
@@ -397,17 +399,17 @@ export default function BillingPage() {
                         isParentProcessing={paymentProcessing}
                     />
                 </PayPalScriptProvider>
-              ) : null 
+              ) : null
             ) : (
               <Alert variant="destructive" className="mt-2">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>PayPal Configuration Issue</AlertTitle>
                 <AlertDescription>
-                  PayPal Client ID is missing or invalid. Please set NEXT_PUBLIC_PAYPAL_CLIENT_ID in your environment variables.
+                  PayPal Client ID is missing or invalid. Please set NEXT_PUBLIC_PAYPAL_CLIENT_ID in your environment variables to enable payments.
                 </AlertDescription>
               </Alert>
             )}
-             {paymentError && isPaypalConfigured && ( 
+             {paymentError && isPaypalConfigured && (
                 <Button onClick={() => { setPaymentError(null); setPaymentProcessing(false); }} variant="outline" className="mt-2">
                     <RefreshCw className="mr-2 h-4 w-4"/> Retry Payment
                 </Button>
@@ -460,4 +462,3 @@ export default function BillingPage() {
     </AppLayout>
   );
 }
-
