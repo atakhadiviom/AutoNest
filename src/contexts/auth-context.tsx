@@ -77,6 +77,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     } catch (error: any) {
       console.error("Firebase login error: ", error);
+      if (error.code === 'auth/invalid-credential') {
+        console.warn("Login failed due to invalid credentials. Please ensure the email and password are correct and the user exists.");
+      }
       toast({
         title: "Login Failed",
         description: error.message || "Could not log in. Please check your credentials.",
