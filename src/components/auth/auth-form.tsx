@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -38,7 +39,7 @@ const signupSchema = formSchemaBase.extend({
 
 export function AuthForm({ mode }: AuthFormProps) {
   const { login, signup } = useAuth();
-  const { toast } = useToast();
+  const { toast } = useToast(); // Keep for potential form-specific toasts if needed later
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -58,18 +59,18 @@ export function AuthForm({ mode }: AuthFormProps) {
     setIsLoading(true);
     try {
       if (mode === "login") {
-        login(values.email); // Password checking is omitted for mock
+        await login(values.email, values.password);
       } else {
-        // In a real app, password would be passed to signup
-        signup(values.email);
+        // Type assertion to access confirmPassword if needed, but signup only needs email/password
+        const signupValues = values as z.infer<typeof signupSchema>;
+        await signup(signupValues.email, signupValues.password);
       }
-      // Successful login/signup is handled by router push in AuthContext
+      // Successful login/signup is now primarily handled by onAuthStateChanged in AuthContext
+      // and page navigations. Toasts for success/failure are in AuthContext methods.
     } catch (error) {
-      toast({
-        title: "Authentication Error",
-        description: (error as Error).message || "An unexpected error occurred.",
-        variant: "destructive",
-      });
+      // Errors are already toasted by AuthContext methods.
+      // This catch block ensures isLoading is set to false.
+      // console.error("AuthForm submission error:", error); // Optional: for debugging if needed
     } finally {
       setIsLoading(false);
     }

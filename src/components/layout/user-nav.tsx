@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -21,17 +22,21 @@ export function UserNav() {
     return null;
   }
 
-  const getInitials = (email: string) => {
+  const getInitials = (email: string | null): string => {
+    if (!email) return "??"; // Handle null email case
     const parts = email.split('@')[0];
+    if (!parts) return email.substring(0,2).toUpperCase() || "??";
     return parts.substring(0, 2).toUpperCase();
   };
+  
+  const userEmail = user.email || "No email"; // Fallback for display
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-9 w-9 rounded-full">
           <Avatar className="h-9 w-9">
-            <AvatarImage src={`https://placehold.co/40x40.png?text=${getInitials(user.email)}`} alt={user.email} data-ai-hint="user avatar" />
+            <AvatarImage src={`https://placehold.co/40x40.png?text=${getInitials(user.email)}`} alt={userEmail} data-ai-hint="user avatar" />
             <AvatarFallback>{getInitials(user.email)}</AvatarFallback>
           </Avatar>
         </Button>
@@ -41,7 +46,7 @@ export function UserNav() {
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">Autnest User</p>
             <p className="text-xs leading-none text-muted-foreground">
-              {user.email}
+              {userEmail}
             </p>
           </div>
         </DropdownMenuLabel>
