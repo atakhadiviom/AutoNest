@@ -14,7 +14,7 @@ export default function BillingPage() {
 
   const handleAddCredits = () => {
     // In a real app, this would trigger a payment flow.
-    // For simulation, we'll just add a fixed amount.
+    // For simulation, we'll just add a fixed amount of credits.
     addCredits(50); 
   };
 
@@ -38,8 +38,8 @@ export default function BillingPage() {
     );
   }
   
-  // Format credits for display, ensuring it's a number
-  const currentCredits = typeof user.credits === 'number' ? user.credits.toFixed(2) : '0.00';
+  // Format credits for display as dollar value
+  const displayedDollarValue = typeof user.credits === 'number' ? (user.credits / 100).toFixed(2) : '0.00';
 
 
   return (
@@ -56,7 +56,7 @@ export default function BillingPage() {
             </p>
           </div>
           <Button size="lg" onClick={handleAddCredits}>
-            <PlusCircle className="mr-2 h-5 w-5" /> Add 50 Credits (Simulated)
+            <PlusCircle className="mr-2 h-5 w-5" /> Add 50 Credits (Simulated: +$0.50)
           </Button>
         </div>
 
@@ -75,7 +75,7 @@ export default function BillingPage() {
             </div>
             <div className="flex justify-between items-center">
               <p className="text-muted-foreground">Next billing date: October 26, 2024 (Example)</p>
-              <p className="font-semibold text-xl text-primary">${currentCredits} <span className="text-sm text-muted-foreground">Remaining Credits</span></p>
+              <p className="font-semibold text-xl text-primary">${displayedDollarValue} <span className="text-sm text-muted-foreground">Credit Balance</span></p>
             </div>
           </CardContent>
         </Card>
