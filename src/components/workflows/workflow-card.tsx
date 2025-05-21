@@ -15,6 +15,9 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, CalendarDays, Layers, CreditCard, Repeat, History } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format, parseISO } from 'date-fns';
+import { useState, useEffect } from "react";
+import { db } from "@/lib/firebase";
+import { collection, query, where, getCountFromServer } from "firebase/firestore";
 
 interface WorkflowCardProps {
   workflow: Workflow;
@@ -22,6 +25,43 @@ interface WorkflowCardProps {
 
 export function WorkflowCard({ workflow }: WorkflowCardProps) {
   const IconComponent = workflow.icon || Layers;
+  const [displayUsageCount, setDisplayUsageCount] = useState<number | string>(workflow.usageCount);
+  const [isLoadingUsage, setIsLoadingUsage] = useState<boolean>(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchCount = async () => {
+      if (!workflow.id) {
+        setDisplayUsageCount(workflow.usageCount); // Use mock data if no ID
+        return;
+      }
+      setIsLoadingUsage(true);
+      try {
+        const q = query(
+          collection(db, "workflowRunLogs"),
+          where("workflowId", "==", workflow.id)
+        );
+        const snapshot = await getCountFromServer(q);
+        if (isMounted) {
+          setDisplayUsageCount(snapshot.data().count);
+        }
+      } catch (error) {
+        console.error(`Error fetching usage count for workflow ${workflow.id}:`, error);
+        if (isMounted) {
+          setDisplayUsageCount(workflow.usageCount); // Fallback to mock on error
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingUsage(false);
+        }
+      }
+    };
+
+    fetchCount();
+    return () => {
+      isMounted = false; // Cleanup to prevent state updates on unmounted component
+    };
+  }, [workflow.id, workflow.usageCount]);
 
   return (
     <Card className="flex flex-col h-full shadow-lg hover:shadow-xl transition-shadow duration-300">
@@ -37,7 +77,7 @@ export function WorkflowCard({ workflow }: WorkflowCardProps) {
             )}
             <Badge variant="outline" className="flex items-center">
               <Repeat className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
-              Used: {workflow.usageCount}
+              Used: {isLoadingUsage ? '...' : displayUsageCount}
             </Badge>
           </div>
         </div>
