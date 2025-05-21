@@ -12,7 +12,9 @@ import { useAuth } from '@/contexts/auth-context';
 import AppLayout from "@/components/layout/app-layout";
 import { mockWorkflows } from "@/lib/mock-data";
 import type { Workflow, WorkflowStep, WorkflowRunLog } from "@/lib/types";
-import type { KeywordSuggestionOutput } from '@/ai/flows/keyword-suggestion-flow'; // For typing fullOutput
+import type { KeywordSuggestionOutput } from '@/ai/flows/keyword-suggestion-flow'; 
+import type { BlogFactoryOutput } from '@/ai/flows/blog-factory-flow';
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,13 +23,27 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/loader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database, FileText, AlertCircleIcon } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database, FileText, AlertCircleIcon, Newspaper } from "lucide-react";
 
 const runnerComponents: Record<string, ComponentType<any>> = {
   KeywordSuggesterRunner: lazy(() => 
     import('@/components/tools/keyword-suggester-runner').then(module => ({ default: module.KeywordSuggesterRunner }))
   ),
+  BlogFactoryRunner: lazy(() =>
+    import('@/components/tools/blog-factory-runner').then(module => ({ default: module.BlogFactoryRunner }))
+  ),
 };
+
+// Helper to check if output is BlogFactoryOutput
+function isBlogFactoryOutput(output: any): output is BlogFactoryOutput {
+  return output && typeof output.title === 'string' && typeof output.content === 'string' && typeof output.slug === 'string';
+}
+
+// Helper to check if output is KeywordSuggestionOutput
+function isKeywordSuggestionOutput(output: any): output is KeywordSuggestionOutput['suggestions'] {
+    return Array.isArray(output) && (output.length === 0 || (output[0] && typeof output[0].keyword === 'string'));
+}
+
 
 export default function WorkflowDetailsPage() {
   const router = useRouter();
@@ -79,7 +95,14 @@ export default function WorkflowDetailsPage() {
         const querySnapshot = await getDocs(q);
         const history: WorkflowRunLog[] = [];
         querySnapshot.forEach((doc) => {
-          history.push({ id: doc.id, ...doc.data() } as WorkflowRunLog);
+          const data = doc.data();
+          // Ensure timestamp is correctly handled
+          const timestamp = data.timestamp instanceof FirestoreTimestamp 
+                            ? data.timestamp 
+                            : (data.timestamp && data.timestamp.toDate) 
+                              ? data.timestamp.toDate() // Handle cases where it might be a Firebase-like object but not instance
+                              : new Date(); // Fallback, though ideally serverTimestamp ensures correct type
+          history.push({ id: doc.id, ...data, timestamp } as WorkflowRunLog);
         });
         setRunHistory(history);
       } catch (err) {
@@ -123,8 +146,8 @@ export default function WorkflowDetailsPage() {
 
   const formatFirestoreTimestamp = (timestamp: FirestoreTimestamp | Date): string => {
     if (!timestamp) return "N/A";
-    const date = timestamp instanceof FirestoreTimestamp ? timestamp.toDate() : timestamp;
-    return format(date, "PPpp 'at' HH:mm:ss"); // More precise time
+    const date = timestamp instanceof FirestoreTimestamp ? timestamp.toDate() : (timestamp instanceof Date ? timestamp : new Date());
+    return format(date, "PPpp 'at' HH:mm:ss"); 
   };
 
   return (
@@ -270,7 +293,8 @@ export default function WorkflowDetailsPage() {
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="text-sm space-y-1 pb-4">
-                          {run.inputDetails?.topic && <p><span className="font-medium">Input:</span> {run.inputDetails.topic}</p>}
+                          {run.inputDetails?.topic && <p><span className="font-medium">Topic:</span> {run.inputDetails.topic}</p>}
+                          {run.inputDetails?.researchQuery && <p><span className="font-medium">Query:</span> {(run.inputDetails.researchQuery as string).substring(0,50)}...</p>}
                           <p><span className="font-medium">Credits:</span> {run.creditCostAtRun}</p>
                           <p className="truncate"><span className="font-medium">Summary:</span> {run.status === 'Completed' ? run.outputSummary : run.errorDetails || 'N/A'}</p>
                         </CardContent>
@@ -294,7 +318,7 @@ export default function WorkflowDetailsPage() {
 
       {selectedHistoryLog && (
         <Dialog open={isHistoryDialogOpen} onOpenChange={setIsHistoryDialogOpen}>
-          <DialogContent className="sm:max-w-lg md:max-w-2xl max-h-[80vh]">
+          <DialogContent className="sm:max-w-lg md:max-w-2xl lg:max-w-4xl max-h-[80vh]">
             <DialogHeader>
               <DialogTitle className="flex items-center">
                 <FileText className="mr-2 h-5 w-5 text-primary" />
@@ -315,9 +339,13 @@ export default function WorkflowDetailsPage() {
               <Separator />
               <div>
                 <h3 className="font-semibold text-foreground mb-1">Input</h3>
-                {selectedHistoryLog.inputDetails?.topic ? (
+                {selectedHistoryLog.inputDetails?.topic && (
                   <p className="text-sm bg-muted p-2 rounded-md">Topic: {selectedHistoryLog.inputDetails.topic}</p>
-                ) : (
+                )}
+                {selectedHistoryLog.inputDetails?.researchQuery && (
+                  <p className="text-sm bg-muted p-2 rounded-md">Research Query: {selectedHistoryLog.inputDetails.researchQuery}</p>
+                )}
+                {!selectedHistoryLog.inputDetails?.topic && !selectedHistoryLog.inputDetails?.researchQuery && (
                   <p className="text-sm text-muted-foreground">No input details recorded.</p>
                 )}
               </div>
@@ -327,14 +355,14 @@ export default function WorkflowDetailsPage() {
                 {selectedHistoryLog.status === 'Completed' ? (
                   <>
                     <p className="text-sm text-muted-foreground mb-1">{selectedHistoryLog.outputSummary}</p>
-                    {Array.isArray(selectedHistoryLog.fullOutput) && selectedHistoryLog.fullOutput.length > 0 ? (
+                    {isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && (
                         <Card className="bg-muted/50 p-3 text-sm">
                           <CardHeader className="p-0 pb-2">
                              <CardTitle className="text-base">Suggested Keywords:</CardTitle>
                           </CardHeader>
                           <CardContent className="p-0">
                             <ul className="list-disc pl-5 space-y-1 max-h-60 overflow-y-auto">
-                              {(selectedHistoryLog.fullOutput as KeywordSuggestionOutput['suggestions']).map((item, index) => (
+                              {selectedHistoryLog.fullOutput.map((item, index) => (
                                 <li key={index}>
                                   <strong>{item.keyword}</strong>
                                   {item.potentialUse && <span className="text-xs text-muted-foreground"> - {item.potentialUse}</span>}
@@ -344,10 +372,42 @@ export default function WorkflowDetailsPage() {
                             </ul>
                           </CardContent>
                         </Card>
-                    ) : typeof selectedHistoryLog.fullOutput === 'string' ? (
+                    )}
+                    {isBlogFactoryOutput(selectedHistoryLog.fullOutput) && (
+                        <Card className="bg-muted/50 p-4 text-sm">
+                            <CardHeader className="p-0 pb-2">
+                                <CardTitle className="text-lg">{selectedHistoryLog.fullOutput.title}</CardTitle>
+                                {selectedHistoryLog.fullOutput.subtitle && <CardDescription className="text-md">{selectedHistoryLog.fullOutput.subtitle}</CardDescription>}
+                            </CardHeader>
+                            <CardContent className="p-0 mt-2 space-y-3">
+                                <div className="space-y-1">
+                                    <p className="text-xs font-medium uppercase text-muted-foreground">Meta</p>
+                                    <p className="text-xs bg-background p-2 rounded">{selectedHistoryLog.fullOutput.meta}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-xs font-medium uppercase text-muted-foreground">Slug</p>
+                                    <p className="text-xs bg-background p-2 rounded font-mono">{selectedHistoryLog.fullOutput.slug}</p>
+                                </div>
+                                {selectedHistoryLog.fullOutput.hashtags && selectedHistoryLog.fullOutput.hashtags.length > 0 && (
+                                    <div className="space-y-1">
+                                        <p className="text-xs font-medium uppercase text-muted-foreground">Hashtags</p>
+                                        <div className="flex flex-wrap gap-1">
+                                        {selectedHistoryLog.fullOutput.hashtags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}
+                                        </div>
+                                    </div>
+                                )}
+                                <p className="text-xs font-medium uppercase text-muted-foreground pt-2">Content</p>
+                                <ScrollArea className="h-[250px] border rounded p-3 bg-background">
+                                    <div className="whitespace-pre-line" dangerouslySetInnerHTML={{ __html: selectedHistoryLog.fullOutput.content.replace(/\n/g, '<br />') }} />
+                                </ScrollArea>
+                            </CardContent>
+                        </Card>
+                    )}
+                    {!isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && !isBlogFactoryOutput(selectedHistoryLog.fullOutput) && typeof selectedHistoryLog.fullOutput === 'string' && (
                         <pre className="text-xs bg-muted p-2 rounded-md whitespace-pre-wrap">{selectedHistoryLog.fullOutput}</pre>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No detailed output recorded.</p>
+                    )}
+                     {!isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && !isBlogFactoryOutput(selectedHistoryLog.fullOutput) && typeof selectedHistoryLog.fullOutput !== 'string' && (
+                        <p className="text-sm text-muted-foreground">No detailed output of known type recorded or output is complex.</p>
                     )}
                   </>
                 ) : (

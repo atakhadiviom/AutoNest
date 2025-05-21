@@ -1,6 +1,7 @@
 
 import type { Timestamp } from 'firebase/firestore';
-import type { KeywordSuggestionOutput } from '@/ai/flows/keyword-suggestion-flow'; // Assuming this type export exists
+import type { KeywordSuggestionOutput } from '@/ai/flows/keyword-suggestion-flow';
+import type { BlogFactoryOutput } from '@/ai/flows/blog-factory-flow'; // Added import
 
 export type WorkflowStep = {
   id: string;
@@ -32,11 +33,9 @@ export interface WorkflowRunLog {
   userEmail: string | null;
   timestamp: Timestamp;
   status: 'Completed' | 'Failed';
-  inputDetails?: Record<string, any>; // e.g., { topic: "some topic" }
-  outputSummary?: string; // e.g., "15 suggestions found" or actual output snippet
+  inputDetails?: Record<string, any>; // e.g., { topic: "some topic" } or { researchQuery: "some query"}
+  outputSummary?: string; // e.g., "15 suggestions found" or "Blog post generated"
   errorDetails?: string; // Message if status is 'Failed'
   creditCostAtRun: number;
-  // Adding fullOutput to store the detailed results of a run
-  fullOutput?: KeywordSuggestionOutput['suggestions'] | string | Record<string, any>;
+  fullOutput?: KeywordSuggestionOutput['suggestions'] | BlogFactoryOutput | string | Record<string, any>; // Added BlogFactoryOutput
 }
-
