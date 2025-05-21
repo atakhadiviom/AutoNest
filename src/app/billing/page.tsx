@@ -128,8 +128,8 @@ export default function BillingPage() {
           }
         },
         onCancel: () => {
-            console.log("PayPal payment cancelled by user.");
-            setPaymentError("Payment process was cancelled.");
+            console.log("PayPal payment cancelled by user (onCancel triggered).");
+            setPaymentError("Payment process was cancelled by user.");
             toast({
                 title: "Payment Cancelled",
                 description: "You have cancelled the payment process.",
@@ -138,9 +138,10 @@ export default function BillingPage() {
             setPaymentProcessing(false);
         },
         onError: (err: any) => {
-          console.error("PayPal Button Error:", err);
+          console.error("PayPal Button Error (onError triggered):", err);
           const message = err.message ? String(err.message).toLowerCase() : "";
           if (message.includes("window closed") || message.includes("popup closed")) {
+            console.log("PayPal onError: Detected window closed. Treating as cancellation.");
             setPaymentError("Payment process was cancelled or the window was closed.");
             toast({
               title: "Payment Cancelled",
@@ -148,6 +149,7 @@ export default function BillingPage() {
               variant: "default",
             });
           } else {
+            console.error("PayPal onError: Non-cancellation error:", err.message || err);
             setPaymentError(`PayPal Error: ${err.message || "An error occurred with PayPal."}`);
             toast({
               title: "PayPal Error",
@@ -349,3 +351,4 @@ export default function BillingPage() {
     </AppLayout>
   );
 }
+
