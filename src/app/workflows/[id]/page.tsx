@@ -12,22 +12,21 @@ import { useAuth } from '@/contexts/auth-context';
 import AppLayout from "@/components/layout/app-layout";
 import { mockWorkflows } from "@/lib/mock-data";
 import type { Workflow, WorkflowStep, WorkflowRunLog } from "@/lib/types";
+import type { KeywordSuggestionOutput } from '@/ai/flows/keyword-suggestion-flow'; // For typing fullOutput
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/loader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database, FileText, AlertCircleIcon } from "lucide-react";
 
-// Dynamically import runner components
 const runnerComponents: Record<string, ComponentType<any>> = {
   KeywordSuggesterRunner: lazy(() => 
     import('@/components/tools/keyword-suggester-runner').then(module => ({ default: module.KeywordSuggesterRunner }))
   ),
-  // Add other runners here as needed
 };
 
 export default function WorkflowDetailsPage() {
@@ -44,6 +43,9 @@ export default function WorkflowDetailsPage() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
+  const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
+  const [selectedHistoryLog, setSelectedHistoryLog] = useState<WorkflowRunLog | null>(null);
+
   useEffect(() => {
     if (id) {
       const foundWorkflow = mockWorkflows.find((wf) => wf.id === id);
@@ -59,9 +61,8 @@ export default function WorkflowDetailsPage() {
 
   useEffect(() => {
     if (!id || !user || authLoading) {
-      // If no ID, user not loaded, or auth is still loading, don't fetch yet or clear history
       if (!user && !authLoading) setHistoryError("User not authenticated.");
-      setRunHistory([]); // Clear history if user logs out or workflow ID changes
+      setRunHistory([]);
       return;
     }
 
@@ -92,6 +93,10 @@ export default function WorkflowDetailsPage() {
     fetchHistory();
   }, [id, user, authLoading]);
 
+  const handleHistoryCardClick = (log: WorkflowRunLog) => {
+    setSelectedHistoryLog(log);
+    setIsHistoryDialogOpen(true);
+  };
 
   if (loadingWorkflow || authLoading) {
     return <AppLayout><div className="flex justify-center items-center h-64"><Spinner size={36}/></div></AppLayout>;
@@ -119,7 +124,7 @@ export default function WorkflowDetailsPage() {
   const formatFirestoreTimestamp = (timestamp: FirestoreTimestamp | Date): string => {
     if (!timestamp) return "N/A";
     const date = timestamp instanceof FirestoreTimestamp ? timestamp.toDate() : timestamp;
-    return format(date, "PPpp");
+    return format(date, "PPpp 'at' HH:mm:ss"); // More precise time
   };
 
   return (
@@ -233,47 +238,48 @@ export default function WorkflowDetailsPage() {
                   <Activity className="mr-3 h-6 w-6 text-primary" />
                   Activity & History
                 </CardTitle>
-                <CardDescription>Recent executions and logs for this {workflow.isTool ? 'tool' : 'workflow'}.</CardDescription>
+                <CardDescription>Recent executions and logs for this {workflow.isTool ? 'tool' : 'workflow'}. Click a card to view details.</CardDescription>
             </CardHeader>
             <CardContent>
               {historyLoading ? (
                 <div className="flex justify-center items-center py-8"><Spinner size={32}/> Loading history...</div>
               ) : historyError ? (
                 <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
+                  <AlertCircleIcon className="h-4 w-4" />
                   <AlertTitle>Error Loading History</AlertTitle>
                   <AlertDescription>{historyError}</AlertDescription>
                 </Alert>
               ) : runHistory.length > 0 ? (
-                <ScrollArea className="h-[300px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Input</TableHead>
-                      <TableHead>Output/Error</TableHead>
-                      <TableHead className="text-right">Credits</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                <ScrollArea className="h-[400px] pr-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {runHistory.map((run) => (
-                      <TableRow key={run.id}>
-                        <TableCell className="text-xs">{formatFirestoreTimestamp(run.timestamp)}</TableCell>
-                        <TableCell>
-                          <Badge variant={run.status === "Completed" ? "default" : "destructive"}>
-                            {run.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs">{run.inputDetails?.topic || '-'}</TableCell>
-                        <TableCell className="text-xs max-w-xs truncate">
-                          {run.status === 'Completed' ? run.outputSummary : run.errorDetails || '-'}
-                        </TableCell>
-                        <TableCell className="text-right text-xs">{run.creditCostAtRun}</TableCell>
-                      </TableRow>
+                      <Card 
+                        key={run.id} 
+                        className="hover:shadow-md transition-shadow cursor-pointer"
+                        onClick={() => handleHistoryCardClick(run)}
+                      >
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-md flex justify-between items-center">
+                            Run: {formatFirestoreTimestamp(run.timestamp).split(' at')[0]}
+                            <Badge variant={run.status === "Completed" ? "default" : "destructive"}>
+                              {run.status}
+                            </Badge>
+                          </CardTitle>
+                          <CardDescription className="text-xs">
+                            {formatFirestoreTimestamp(run.timestamp).split('at ')[1]}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="text-sm space-y-1 pb-4">
+                          {run.inputDetails?.topic && <p><span className="font-medium">Input:</span> {run.inputDetails.topic}</p>}
+                          <p><span className="font-medium">Credits:</span> {run.creditCostAtRun}</p>
+                          <p className="truncate"><span className="font-medium">Summary:</span> {run.status === 'Completed' ? run.outputSummary : run.errorDetails || 'N/A'}</p>
+                        </CardContent>
+                        <CardFooter className="text-xs text-primary pt-2 pb-3">
+                          Click to view details
+                        </CardFooter>
+                      </Card>
                     ))}
-                  </TableBody>
-                </Table>
+                  </div>
                 </ScrollArea>
               ) : (
                 <div className="text-center py-8 border-2 border-dashed rounded-lg">
@@ -285,6 +291,83 @@ export default function WorkflowDetailsPage() {
             </CardContent>
         </Card>
       </div>
+
+      {selectedHistoryLog && (
+        <Dialog open={isHistoryDialogOpen} onOpenChange={setIsHistoryDialogOpen}>
+          <DialogContent className="sm:max-w-lg md:max-w-2xl max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center">
+                <FileText className="mr-2 h-5 w-5 text-primary" />
+                Workflow Run Details
+              </DialogTitle>
+              <DialogDescription>
+                Detailed log for {selectedHistoryLog.workflowName} run on {formatFirestoreTimestamp(selectedHistoryLog.timestamp)}.
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="max-h-[60vh] p-1 pr-3">
+            <div className="space-y-4 py-4">
+              <div>
+                <h3 className="font-semibold text-foreground mb-1">Run Information</h3>
+                <p className="text-sm"><span className="text-muted-foreground">Status:</span> <Badge variant={selectedHistoryLog.status === "Completed" ? "default" : "destructive"}>{selectedHistoryLog.status}</Badge></p>
+                <p className="text-sm"><span className="text-muted-foreground">Credits Used:</span> {selectedHistoryLog.creditCostAtRun}</p>
+                <p className="text-sm"><span className="text-muted-foreground">User:</span> {selectedHistoryLog.userEmail || 'N/A'}</p>
+              </div>
+              <Separator />
+              <div>
+                <h3 className="font-semibold text-foreground mb-1">Input</h3>
+                {selectedHistoryLog.inputDetails?.topic ? (
+                  <p className="text-sm bg-muted p-2 rounded-md">Topic: {selectedHistoryLog.inputDetails.topic}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No input details recorded.</p>
+                )}
+              </div>
+              <Separator />
+              <div>
+                <h3 className="font-semibold text-foreground mb-1">Output</h3>
+                {selectedHistoryLog.status === 'Completed' ? (
+                  <>
+                    <p className="text-sm text-muted-foreground mb-1">{selectedHistoryLog.outputSummary}</p>
+                    {Array.isArray(selectedHistoryLog.fullOutput) && selectedHistoryLog.fullOutput.length > 0 ? (
+                        <Card className="bg-muted/50 p-3 text-sm">
+                          <CardHeader className="p-0 pb-2">
+                             <CardTitle className="text-base">Suggested Keywords:</CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-0">
+                            <ul className="list-disc pl-5 space-y-1 max-h-60 overflow-y-auto">
+                              {(selectedHistoryLog.fullOutput as KeywordSuggestionOutput['suggestions']).map((item, index) => (
+                                <li key={index}>
+                                  <strong>{item.keyword}</strong>
+                                  {item.potentialUse && <span className="text-xs text-muted-foreground"> - {item.potentialUse}</span>}
+                                  {item.relevanceScore !== undefined && <Badge variant="outline" className="ml-2 text-xs">{(item.relevanceScore * 100).toFixed(0)}%</Badge>}
+                                </li>
+                              ))}
+                            </ul>
+                          </CardContent>
+                        </Card>
+                    ) : typeof selectedHistoryLog.fullOutput === 'string' ? (
+                        <pre className="text-xs bg-muted p-2 rounded-md whitespace-pre-wrap">{selectedHistoryLog.fullOutput}</pre>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No detailed output recorded.</p>
+                    )}
+                  </>
+                ) : (
+                  <Alert variant="destructive">
+                    <AlertCircleIcon className="h-4 w-4" />
+                    <AlertTitle>Error Details</AlertTitle>
+                    <AlertDescription>{selectedHistoryLog.errorDetails || 'No specific error message recorded.'}</AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            </div>
+            </ScrollArea>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button variant="outline">Close</Button>
+              </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </AppLayout>
   );
 }

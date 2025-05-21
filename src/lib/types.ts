@@ -1,5 +1,6 @@
 
 import type { Timestamp } from 'firebase/firestore';
+import type { KeywordSuggestionOutput } from '@/ai/flows/keyword-suggestion-flow'; // Assuming this type export exists
 
 export type WorkflowStep = {
   id: string;
@@ -35,4 +36,7 @@ export interface WorkflowRunLog {
   outputSummary?: string; // e.g., "15 suggestions found" or actual output snippet
   errorDetails?: string; // Message if status is 'Failed'
   creditCostAtRun: number;
+  // Adding fullOutput to store the detailed results of a run
+  fullOutput?: KeywordSuggestionOutput['suggestions'] | string | Record<string, any>;
 }
+

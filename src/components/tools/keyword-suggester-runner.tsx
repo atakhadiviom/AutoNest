@@ -21,7 +21,6 @@ import { useAuth } from "@/contexts/auth-context";
 import { db } from "@/lib/firebase"; // Import db
 import { collection, addDoc, serverTimestamp } from "firebase/firestore"; // Import Firestore functions
 import type { WorkflowRunLog } from "@/lib/types"; // Import WorkflowRunLog type
-// import type { Workflow } from "@/lib/types"; // Workflow type not directly used here for workflowName, it's passed as prop
 
 const formSchema = z.object({
   topic: z.string().min(3, { message: "Topic must be at least 3 characters." }),
@@ -37,7 +36,6 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
   const [suggestions, setSuggestions] = useState<KeywordSuggestionOutput['suggestions'] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // const [rawN8nResponse, setRawN8nResponse] = useState<string | null>(null); // Removed as per user request
   const { toast } = useToast();
   const { user, deductCredits, loading: authLoading } = useAuth();
 
@@ -54,24 +52,26 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
     status: 'Completed' | 'Failed', 
     inputTopic: string, 
     outputSuggestions: KeywordSuggestionOutput['suggestions'] | null, 
-    errorMessage?: string // This is optional, and undefined for 'Completed' status
+    errorMessage?: string
   ) => {
     if (!user) {
       console.error("Cannot log run: user not available.");
       return;
     }
     try {
-      // Construct the log entry, conditionally adding fields
       const logEntry: Omit<WorkflowRunLog, 'id' | 'timestamp'> & { timestamp: any } = {
         workflowId,
         workflowName,
         userId: user.uid,
         userEmail: user.email,
-        timestamp: serverTimestamp(), // Use serverTimestamp for consistency
+        timestamp: serverTimestamp(),
         status,
         inputDetails: { topic: inputTopic },
         creditCostAtRun: creditCost,
-        ...(status === 'Completed' && outputSuggestions && { outputSummary: `${outputSuggestions.length} suggestions found` }),
+        ...(status === 'Completed' && outputSuggestions && { 
+          outputSummary: `${outputSuggestions.length} suggestion${outputSuggestions.length === 1 ? '' : 's'} found`,
+          fullOutput: outputSuggestions 
+        }),
         ...(status === 'Failed' && errorMessage && { errorDetails: errorMessage }),
       };
 
@@ -102,7 +102,6 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
     setIsLoading(true);
     setError(null);
     setSuggestions(null);
-    // setRawN8nResponse(null); // Removed
 
     const input: KeywordSuggestionInput = {
       topic: values.topic,
@@ -111,10 +110,8 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
     try {
       const result = await suggestKeywords(input);
       console.log("[KeywordSuggesterRunner] Received result from suggestKeywords:", result);
-      // setRawN8nResponse(result.rawResponse || null); // Removed
-
+      
       if (result && typeof result.suggestions !== 'undefined') {
-         // Deduct credits only if suggestions were attempted to be processed (even if empty)
         await deductCredits(creditCost); 
       }
       
@@ -133,13 +130,6 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
             description: `Found ${result.suggestions.length} keyword ideas. ${creditCost} credits used.`,
             });
         }
-      } else {
-        // This case might indicate an issue with the keyword-suggestion-flow parsing or the n8n response not matching expectations
-        // but `result.suggestions` could be an empty array, which is valid.
-        // If `result.suggestions` is literally undefined or null, then it's an issue.
-        // The current `keyword-suggestion-flow` aims to always return `suggestions` array (even if empty) or throw an error.
-        // logRunToFirestore('Failed', values.topic, null, "Suggestions field was missing in the service response."); // Or handle as appropriate
-        // For now, assume `suggestKeywords` handles its errors or returns an empty suggestions array
       }
     } catch (e) {
       console.error("[KeywordSuggesterRunner] Error suggesting keywords:", e);
@@ -298,4 +288,3 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
     </div>
   );
 };
-
