@@ -21,29 +21,28 @@ import { useAuth } from "@/contexts/auth-context";
 import { Spinner, FullPageLoader } from "@/components/ui/loader";
 import { useToast } from "@/hooks/use-toast";
 
-const PAYPAL_CLIENT_ID = "AfxvMbf0Sdap_JVtGjI0rEe62y3zs4iGfFeTmKySR7VH-sO06IP7dO_fvIkkx3RRkjRBW52kfklQmVg3"; // Updated Live Client ID
-const CREDITS_PER_DOLLAR = 100; 
+const PAYPAL_CLIENT_ID = "AfxvMbf0Sdap_JVtGjI0rEe62y3zs4iGfFeTmKySR7VH-sO06IP7dO_fvIkkx3RRkjRBW52kfklQmVg3"; // Live Client ID
+const CREDITS_PER_DOLLAR = 100;
 
-function PayPalPaymentButtons({ 
-  creditsToPurchase, 
-  onPaymentSuccess, 
+function PayPalPaymentButtons({
+  creditsToPurchase,
+  onPaymentSuccess,
   onPaymentError,
   onPaymentCancel,
   setPaymentProcessingParent,
-  isParentProcessing 
-}: { 
-  creditsToPurchase: number, 
+  isParentProcessing
+}: {
+  creditsToPurchase: number,
   onPaymentSuccess: (details: any) => void,
   onPaymentError: (err: any) => void,
   onPaymentCancel: () => void,
   setPaymentProcessingParent: (isProcessing: boolean) => void,
-  isParentProcessing: boolean 
+  isParentProcessing: boolean
 }) {
   const [{ isPending, isRejected, options: scriptOptions }, dispatch] = usePayPalScriptReducer();
   const { toast } = useToast();
   const dollarAmount = (creditsToPurchase / CREDITS_PER_DOLLAR).toFixed(2);
 
-  // Add beforeunload listener to warn users during payment processing
   useEffect(() => {
     if (isParentProcessing) {
       const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -57,14 +56,15 @@ function PayPalPaymentButtons({
 
   useEffect(() => {
     if (isRejected) {
-      console.error("[PayPalPaymentButtons] PayPal SDK script failed to load.", scriptOptions);
-      onPaymentError(new Error("PayPal SDK failed to load. Check your Client ID and network connection."));
+      console.error("[PayPalPaymentButtons] PayPal SDK script failed to load. Details:", scriptOptions);
+      // Propagate the error to the parent component to handle the main UI display.
+      onPaymentError(new Error("PayPal SDK failed to load. Check your Client ID, network connection, and browser console for more details."));
     }
   }, [isRejected, onPaymentError, scriptOptions]);
 
   const createOrder: PayPalButtonsComponentProps['createOrder'] = (_data, actions) => {
     console.log("[PayPalButtons] createOrder called. Attempting to create order for amount:", dollarAmount, "USD for", creditsToPurchase, "credits.");
-    
+
     if (creditsToPurchase <= 0) {
       const errorMsg = "Invalid credit amount. Please enter a positive number of credits to purchase.";
       toast({
@@ -73,12 +73,12 @@ function PayPalPaymentButtons({
           variant: "destructive",
       });
       console.error("[PayPalButtons] createOrder error:", errorMsg, "Credits:", creditsToPurchase);
-      setPaymentProcessingParent(false); 
-      onPaymentError(new Error(errorMsg)); 
-      return Promise.reject(new Error(errorMsg)); 
+      setPaymentProcessingParent(false);
+      onPaymentError(new Error(errorMsg)); // Notify parent
+      return Promise.reject(new Error(errorMsg)); // Reject to trigger PayPalButtons onError
     }
 
-    setPaymentProcessingParent(true); 
+    setPaymentProcessingParent(true);
     onPaymentError(null); // Clear previous errors from parent
 
     const purchaseUnits = [{
@@ -91,66 +91,48 @@ function PayPalPaymentButtons({
 
     console.log("[PayPalButtons] createOrder: Constructing purchase_units:", JSON.stringify(purchaseUnits, null, 2));
 
-    const orderPromise = actions.order.create({
+    return actions.order.create({
       purchase_units: purchaseUnits,
       intent: "CAPTURE"
-    });
-
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("PayPal order creation timed out. Please try again.")), 30000) // 30-second timeout
-    );
-
-    return Promise.race([orderPromise, timeoutPromise]).then((orderID) => {
+    }).then((orderID) => {
       console.log("[PayPalButtons] createOrder successful. Order ID:", orderID);
       return orderID;
     }).catch(err => {
+      // This catch is for errors from actions.order.create() itself.
       console.error("[PayPalButtons] Error in actions.order.create():", { error: err, creditsToPurchase, dollarAmount });
- setPaymentProcessingParent(false);
-      onPaymentError(err); 
-      throw err; 
+      setPaymentProcessingParent(false); // Ensure processing is stopped
+      onPaymentError(err); // Notify parent
+      throw err; // Re-throw to ensure PayPalButtons' onError is triggered if needed.
     });
   };
 
   const onApprove: PayPalButtonsComponentProps['onApprove'] = async (data, actions) => {
     console.log("[PayPalButtons] onApprove called. Data from PayPal:", data);
-    // Parent's paymentProcessing state remains true until final success/error.
-    // onPaymentError(null) // Clearing error here might be premature if restart occurs.
-
     try {
       if (!actions.order) {
         const noOrderErrorMsg = "PayPal actions.order is not available in onApprove. This can happen if the payment flow was interrupted or an error occurred before this step.";
         console.error("[PayPalButtons]", noOrderErrorMsg);
-        throw new Error(noOrderErrorMsg); 
+        throw new Error(noOrderErrorMsg);
       }
-
       const orderDetails = await actions.order.capture();
-      console.log("PayPal Order Captured (SUCCESS):", JSON.stringify(orderDetails, null, 2));
-      onPaymentSuccess(orderDetails); // Notify parent of success; parent will set paymentProcessing to false.
-
+      console.log("PayPal Order Captured (SUCCESS RESPONSE from PayPal after payment):", JSON.stringify(orderDetails, null, 2));
+      onPaymentSuccess(orderDetails);
     } catch (error: any) {
-      console.error("[PayPalButtons] Error during actions.order.capture():", error);
-
+      console.error("[PayPalButtons] Error during actions.order.capture() (ERROR RESPONSE/STATE from PayPal after approval attempt):", error);
       const errorMessage = typeof error.message === 'string' ? error.message.toUpperCase() : '';
-      
       if (errorMessage.includes("INSTRUMENT_DECLINED")) {
         console.warn("[PayPalButtons] INSTRUMENT_DECLINED reported during capture. Attempting to restart payment.");
-        toast({ 
+        toast({
             title: "Payment Method Declined",
             description: "Your payment method was declined. Please select a different funding source or try again.",
-            variant: "default", 
+            variant: "default",
         });
-        // `actions.restart()` must be returned to allow PayPal to handle the restart.
-        // The payment flow is not over yet, so don't call onPaymentError or change parent processing state.
-        return actions.restart(); 
+        return actions.restart();
       }
-      
-      // For other non-recoverable errors during capture
-      onPaymentError(error); // Notify parent of the final error; parent will set paymentProcessing to false.
+      onPaymentError(error);
     }
-    // No 'finally' block here that calls setPaymentProcessingParent(false).
-    // The parent (BillingPage) handles this in its onPaymentSuccess/Error/Cancel callbacks.
   };
-  
+
   const onError: PayPalButtonsComponentProps['onError'] = (err) => {
     const errorMessage = typeof err === 'string' ? err : (err as Error)?.message || JSON.stringify(err);
     const lowerCaseErrorMessage = errorMessage.toLowerCase();
@@ -158,21 +140,21 @@ function PayPalPaymentButtons({
 
     if (lowerCaseErrorMessage.includes("window closed") || lowerCaseErrorMessage.includes("popup closed")) {
         console.log("[PayPal Buttons] onError: Detected PayPal window closed by user or popup interaction. Treating as cancellation.");
-        onPaymentCancel(); 
+        onPaymentCancel();
     } else if (lowerCaseErrorMessage.includes("can not open popup window - blocked") || lowerCaseErrorMessage.includes("popup was blocked")) {
         console.error("[PayPal Buttons] onError: Detected popup blocker.");
         onPaymentError(new Error("PayPal popup window was blocked by your browser. Please disable popup blockers for this site and try again."));
     } else {
         console.error("[PayPal Buttons] onError (unexpected PayPal button error):", err);
-        onPaymentError(err); 
+        onPaymentError(err);
     }
-    setPaymentProcessingParent(false); // Error means processing by this button instance stops.
+    setPaymentProcessingParent(false);
   };
 
   const onCancel: PayPalButtonsComponentProps['onCancel'] = (_data, _actions) => {
     console.log("[PayPal Buttons] onCancel triggered (user closed window or cancelled payment). Data from PayPal:", _data);
     onPaymentCancel();
-    setPaymentProcessingParent(false); // Cancellation means processing by this button instance stops.
+    setPaymentProcessingParent(false);
   };
 
   if (isPending) {
@@ -183,15 +165,13 @@ function PayPalPaymentButtons({
       </div>
     );
   }
-  
+
+  // If SDK failed to load, `isRejected` will be true.
+  // The `useEffect` hook above will call `onPaymentError`.
+  // `BillingPage` will then display the primary error message.
+  // So, `PayPalPaymentButtons` returns null here, preventing a double alert.
   if (isRejected) {
-    return <Alert variant="destructive" className="mt-2">
-        <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>PayPal SDK Load Error</AlertTitle>
-        <AlertDescription>
-            Could not load PayPal. Please check your network connection and ensure the Client ID is correct.
-        </AlertDescription>
-    </Alert>;
+    return null;
   }
 
   if (creditsToPurchase <= 0) {
@@ -200,18 +180,18 @@ function PayPalPaymentButtons({
 
   return (
     <PayPalButtons
-      key={dollarAmount} 
-      style={{ 
+      key={dollarAmount}
+      style={{
         shape: "rect",
         layout: "vertical",
-        color: "gold", 
+        color: "gold",
         label: "paypal",
       }}
       createOrder={createOrder}
       onApprove={onApprove}
       onError={onError}
       onCancel={onCancel}
-      disabled={creditsToPurchase <=0 || isPending || isParentProcessing} 
+      disabled={creditsToPurchase <=0 || isPending || isParentProcessing}
     />
   );
 }
@@ -222,15 +202,15 @@ export default function BillingPage() {
   const { toast } = useToast();
 
   const [creditsToPurchase, setCreditsToPurchase] = useState<number>(100);
-  const [paymentProcessing, setPaymentProcessing] = useState(false); 
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
-  const dollarAmount = creditsToPurchase / CREDITS_PER_DOLLAR;
+  const dollarAmount = creditsToPurchase > 0 ? (creditsToPurchase / CREDITS_PER_DOLLAR) : 0;
 
   const handleCreditAmountChange = (e: ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value, 10);
     setCreditsToPurchase(isNaN(value) || value < 1 ? 1 : value);
-    setPaymentError(null); 
+    setPaymentError(null);
   };
 
   const handlePaymentSuccess = (details: any) => {
@@ -239,13 +219,13 @@ export default function BillingPage() {
       title: "Purchase Successful!",
       description: `${creditsToPurchase} credits have been added. Transaction ID: ${details.id}`,
     });
-    setCreditsToPurchase(100); 
+    setCreditsToPurchase(100);
     setPaymentError(null);
-    setPaymentProcessing(false); // Final success
+    setPaymentProcessing(false);
   };
 
   const handlePaymentError = (err: any | null) => {
-    if (err === null) { 
+    if (err === null) {
         setPaymentError(null);
         return;
     }
@@ -258,10 +238,17 @@ export default function BillingPage() {
     } else if (err && typeof err.toString === 'function') {
         message = err.toString();
     }
-    
+
     const lowerCaseMessage = message.toLowerCase();
 
-    if (lowerCaseMessage.includes("popup window was blocked") || lowerCaseMessage.includes("can not open popup window - blocked")) {
+    if (lowerCaseMessage.includes("paypal sdk failed to load")) {
+      setPaymentError(message); // Use the specific message from onPaymentError
+      toast({
+        title: "PayPal Load Error",
+        description: message, // This already includes "Check your Client ID..."
+        variant: "destructive",
+      });
+    } else if (lowerCaseMessage.includes("popup window was blocked") || lowerCaseMessage.includes("can not open popup window - blocked")) {
       const popupBlockedMsg = "PayPal popup window was blocked. Please check your browser settings and disable popup blockers for this site, then try again.";
       setPaymentError(popupBlockedMsg);
       toast({
@@ -270,15 +257,14 @@ export default function BillingPage() {
         variant: "destructive",
       });
     } else if (lowerCaseMessage.includes("window closed") || lowerCaseMessage.includes("popup closed") || lowerCaseMessage.includes("order could not be captured")) {
-        handlePaymentCancel(); 
+        handlePaymentCancel();
     } else if (lowerCaseMessage.includes("invalid credit amount")){
-      setPaymentError(message); 
-      // Toast already shown by createOrder
-    } else if (lowerCaseMessage.includes("payment method was declined")) { // From INSTRUMENT_DECLINED restart path
+      setPaymentError(message);
+      // Toast already shown by createOrder if that was the source
+    } else if (lowerCaseMessage.includes("payment method was declined")) {
       setPaymentError(message);
       // Toast already shown by onApprove
-    }
-     else {
+    } else {
       const genericErrorMsg = `Payment Error: ${message}`;
       setPaymentError(genericErrorMsg);
       toast({
@@ -287,17 +273,17 @@ export default function BillingPage() {
         variant: "destructive",
       });
     }
-    setPaymentProcessing(false); // Final error
+    setPaymentProcessing(false);
   };
 
   const handlePaymentCancel = () => {
     setPaymentError("Payment process was cancelled or the window was closed before completion.");
     toast({
- title: "Payment Cancelled",
+        title: "Payment Cancelled",
         description: "The payment window was closed before completion or the process was cancelled.",
-        variant: "default", 
+        variant: "default",
     });
-    setPaymentProcessing(false); // Final cancellation
+    setPaymentProcessing(false);
   };
 
 
@@ -316,16 +302,16 @@ export default function BillingPage() {
   }
 
   const displayedDollarValue = (user.credits / CREDITS_PER_DOLLAR).toFixed(2);
-  
+
   const scriptProviderOptions = {
     "client-id": PAYPAL_CLIENT_ID,
     currency: "USD",
-    "enable-funding": "venmo", 
-    "disable-funding": "", 
-    "buyer-country": "US", 
-    components: "buttons", 
-    "data-page-type": "product-details", 
-    "data-sdk-integration-source": "developer-studio", 
+    "enable-funding": "venmo",
+    "disable-funding": "",
+    "buyer-country": "US",
+    components: "buttons",
+    "data-page-type": "product-details",
+    "data-sdk-integration-source": "developer-studio",
   };
 
   return (
@@ -346,7 +332,7 @@ export default function BillingPage() {
                 <DollarSign className="h-6 w-6 text-primary" />
                 <div>
                     <p className="text-xs text-muted-foreground">Current Balance</p>
-                    <p className="font-semibold text-2xl text-primary">${displayedDollarValue}</p>
+                    <p className="font-semibold text-2xl text-primary">{displayedDollarValue}</p>
                 </div>
             </div>
           </Card>
@@ -399,23 +385,23 @@ export default function BillingPage() {
             )}
 
             {PAYPAL_CLIENT_ID && !PAYPAL_CLIENT_ID.startsWith("YOUR_") ? (
-              paymentProcessing && !paymentError ? ( // Show spinner only if processing and no overriding error to display
+              paymentProcessing && !paymentError ? (
                 <div className="flex items-center justify-center p-4">
                   <Spinner size={32} />
                   <p className="ml-2">Processing payment...</p>
                 </div>
-              ) : !paymentError || (paymentError && creditsToPurchase > 0) ? ( // Show buttons if no error OR if error but user might retry
+              ) : !paymentError || (paymentError && creditsToPurchase > 0) ? (
                  <PayPalScriptProvider options={scriptProviderOptions}>
-                    <PayPalPaymentButtons 
+                    <PayPalPaymentButtons
                         creditsToPurchase={creditsToPurchase}
                         onPaymentSuccess={handlePaymentSuccess}
                         onPaymentError={handlePaymentError}
                         onPaymentCancel={handlePaymentCancel}
-                        setPaymentProcessingParent={setPaymentProcessing} 
-                        isParentProcessing={paymentProcessing} 
+                        setPaymentProcessingParent={setPaymentProcessing}
+                        isParentProcessing={paymentProcessing}
                     />
                 </PayPalScriptProvider>
-              ) : null // If there's an error AND credits <=0, the specific error message takes precedence
+              ) : null
             ) : (
               <Alert variant="destructive" className="mt-2">
                 <AlertTriangle className="h-4 w-4" />
@@ -425,7 +411,7 @@ export default function BillingPage() {
                 </AlertDescription>
               </Alert>
             )}
-             {paymentError && PAYPAL_CLIENT_ID && !PAYPAL_CLIENT_ID.startsWith("YOUR_") && ( 
+             {paymentError && PAYPAL_CLIENT_ID && !PAYPAL_CLIENT_ID.startsWith("YOUR_") && (
                 <Button onClick={() => { setPaymentError(null); setPaymentProcessing(false); }} variant="outline" className="mt-2">
                     <RefreshCw className="mr-2 h-4 w-4"/> Retry Payment
                 </Button>
@@ -434,8 +420,7 @@ export default function BillingPage() {
           </CardContent>
           <CardFooter>
             <p className="text-xs text-muted-foreground">
-                Payments are processed using PayPal. For testing with a sandbox account, please use your PayPal Sandbox credentials.
-                For more information, visit <a href="https://developer.paypal.com/docs/api/overview/" target="_blank" rel="noopener noreferrer" className="underline text-primary hover:text-primary/80">PayPal Developer <ExternalLink className="inline h-3 w-3 ml-0.5"/></a>.
+                Payments are processed using PayPal. For more information, visit <a href="https://developer.paypal.com/docs/api/overview/" target="_blank" rel="noopener noreferrer" className="underline text-primary hover:text-primary/80">PayPal Developer <ExternalLink className="inline h-3 w-3 ml-0.5"/></a>.
             </p>
           </CardFooter>
         </Card>
@@ -479,3 +464,4 @@ export default function BillingPage() {
     </AppLayout>
   );
 }
+
