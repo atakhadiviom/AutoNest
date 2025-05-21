@@ -17,7 +17,7 @@ import { Lightbulb, AlertCircle, Search, Loader2, Info, CreditCard, Copy } from 
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+// import { Separator } from "@/components/ui/separator"; // Separator no longer needed here
 import { useAuth } from "@/contexts/auth-context"; // Import useAuth
 
 const formSchema = z.object({
@@ -237,17 +237,11 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
                 >
                   <Copy className="mr-2 h-4 w-4" /> Copy Extracted Keywords
                 </Button>
-                <Separator className="my-4" />
-                <p className="text-xs text-muted-foreground mb-1">Full Raw Response:</p>
               </div>
             ) : (
                  <p className="text-sm text-muted-foreground mb-2">Could not extract a 'Keywords' list from the raw response, or it was empty.</p>
             )}
-            <ScrollArea className="h-[100px] rounded-md border bg-muted/10 p-2">
-              <pre className="text-xs whitespace-pre-wrap break-all">
-                <code>{rawN8nResponse}</code>
-              </pre>
-            </ScrollArea>
+            {/* Full raw response display removed as per user request */}
           </CardContent>
         </Card>
       )}
@@ -311,3 +305,4 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
     </div>
   );
 };
+
