@@ -36,6 +36,7 @@
     "@radix-ui/react-toast": "^1.2.6",
     "@radix-ui/react-tooltip": "^1.1.8",
     "@paypal/react-paypal-js": "^8.3.0",
+    "@paypal/checkout-server-sdk": "^1.0.3",
     "@tanstack-query-firebase/react": "^1.0.5",
     "@tanstack/react-query": "^5.66.0",
     "class-variance-authority": "^0.7.1",
