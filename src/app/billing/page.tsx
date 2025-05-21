@@ -49,36 +49,49 @@ function PayPalPaymentButtons({
   }, [isRejected, onPaymentError, scriptOptions]);
 
   const createOrder: PayPalButtonsComponentProps['createOrder'] = (_data, actions) => {
-    console.log("[PayPalButtons] createOrder called. Amount:", dollarAmount);
+    console.log("[PayPalButtons] createOrder called. Attempting to create order for amount:", dollarAmount, "USD");
+    
     if (creditsToPurchase <= 0) {
       toast({
           title: "Invalid Amount",
           description: "Please enter a valid amount of credits to purchase.",
           variant: "destructive",
       });
+      console.error("[PayPalButtons] createOrder error: Invalid credit amount for PayPal order.", creditsToPurchase);
       return Promise.reject(new Error("Invalid credit amount for PayPal order."));
     }
-    setPaymentProcessingParent(true); // Set processing true when order creation starts
-    onPaymentError(null); // Clear previous errors
+
+    setPaymentProcessingParent(true); 
+    onPaymentError(null); 
+
+    const purchaseUnits = [{
+      amount: {
+        value: dollarAmount,
+        currency_code: "USD"
+      },
+      description: `${creditsToPurchase} AutoNest Credits`
+    }];
+
+    console.log("[PayPalButtons] createOrder: Constructing purchase_units:", JSON.stringify(purchaseUnits, null, 2));
+
     return actions.order.create({
-      purchase_units: [{
-        amount: {
-          value: dollarAmount,
-          currency_code: "USD"
-        },
-        description: `${creditsToPurchase} AutoNest Credits`
-      }]
+      purchase_units: purchaseUnits
+    }).then((orderID) => {
+      console.log("[PayPalButtons] createOrder successful. Order ID:", orderID);
+      // The PayPalButtons component handles the orderID internally. 
+      // This .then block is primarily for logging success before returning the orderID.
+      return orderID;
     }).catch(err => {
       console.error("[PayPalButtons] Error in actions.order.create():", err);
-      setPaymentProcessingParent(false); // Reset processing if order creation fails
-      throw err; 
+      setPaymentProcessingParent(false); 
+      onPaymentError(err); // Ensure parent is notified of the error
+      throw err; // Re-throw to ensure PayPal SDK's internal error handling also picks it up if needed.
     });
   };
 
   const onApprove: PayPalButtonsComponentProps['onApprove'] = async (_data, actions) => {
     console.log("[PayPalButtons] onApprove called. Data from PayPal:", _data);
-    // setPaymentProcessingParent(true); // Already set in createOrder, or should be if popup appeared
-    onPaymentError(null); // Clear previous errors
+    onPaymentError(null); 
     try {
       if (!actions.order) {
         console.error("[PayPalButtons] PayPal actions.order is not available in onApprove. This can happen if the PayPal window was closed or an error occurred before full approval.");
@@ -98,13 +111,15 @@ function PayPalPaymentButtons({
   const onError: PayPalButtonsComponentProps['onError'] = (err) => {
     const errorMessage = typeof err === 'string' ? err : (err as Error)?.message || JSON.stringify(err);
     const lowerCaseErrorMessage = errorMessage.toLowerCase();
+    console.error("[PayPal Buttons] onError triggered (This indicates an ERROR from PayPal before or during the payment flow). Raw error object:", err);
+
 
     if (lowerCaseErrorMessage.includes("window closed") || lowerCaseErrorMessage.includes("popup closed")) {
         console.log("[PayPal Buttons] onError: Detected PayPal window closed by user or popup interaction. Treating as cancellation.");
-        onPaymentCancel(); // Call the parent's cancellation handler
+        onPaymentCancel(); 
     } else {
         console.error("[PayPal Buttons] onError (unexpected PayPal button error):", err);
-        onPaymentError(err); // Call the parent's generic error handler
+        onPaymentError(err); 
     }
     setPaymentProcessingParent(false);
   };
@@ -125,7 +140,6 @@ function PayPalPaymentButtons({
   }
   
   if (isRejected) {
-    // Error already handled by useEffect setting paymentError in parent or by onPaymentError prop
     return <Alert variant="destructive" className="mt-2">
         <AlertTriangle className="h-4 w-4" />
         <AlertTitle>PayPal SDK Load Error</AlertTitle>
@@ -141,7 +155,7 @@ function PayPalPaymentButtons({
 
   return (
     <PayPalButtons
-      key={dollarAmount} // Force re-render if amount changes
+      key={dollarAmount} 
       style={{ 
         shape: "rect",
         layout: "vertical",
@@ -152,7 +166,7 @@ function PayPalPaymentButtons({
       onApprove={onApprove}
       onError={onError}
       onCancel={onCancel}
-      disabled={creditsToPurchase <=0 || isPending /* Disable if SDK is still pending or amount is invalid */}
+      disabled={creditsToPurchase <=0 || isPending}
     />
   );
 }
@@ -171,7 +185,7 @@ export default function BillingPage() {
   const handleCreditAmountChange = (e: ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value, 10);
     setCreditsToPurchase(isNaN(value) || value < 1 ? 1 : value);
-    setPaymentError(null); // Clear error when amount changes
+    setPaymentError(null); 
   };
 
   const handlePaymentSuccess = (details: any) => {
@@ -180,7 +194,7 @@ export default function BillingPage() {
       title: "Purchase Successful!",
       description: `${creditsToPurchase} credits have been added. Transaction ID: ${details.id}`,
     });
-    setCreditsToPurchase(100); // Reset to default
+    setCreditsToPurchase(100); 
     setPaymentError(null);
   };
 
@@ -208,6 +222,9 @@ export default function BillingPage() {
         description: "PayPal popup window was blocked. Please disable popup blockers and try again.",
         variant: "destructive",
       });
+    } else if (lowerCaseMessage.includes("window closed") || lowerCaseMessage.includes("popup closed") || lowerCaseMessage.includes("order could not be captured")) {
+        // This condition might be redundant if onCancel is robust, but it's a safeguard.
+        handlePaymentCancel(); // Treat these also as cancellations if they reach here.
     } else {
       setPaymentError(`Payment Error: ${message}`);
       toast({
@@ -405,5 +422,3 @@ export default function BillingPage() {
     </AppLayout>
   );
 }
-
-    
