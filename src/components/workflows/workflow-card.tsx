@@ -29,7 +29,7 @@ export function WorkflowCard({ workflow }: WorkflowCardProps) {
         <div className="flex items-start justify-between mb-2">
           <IconComponent className="h-10 w-10 text-primary mb-2" />
           <div className="flex flex-col items-end gap-1">
-            <Badge variant="outline">{workflow.steps.length} Steps</Badge>
+            {/* <Badge variant="outline">{workflow.steps.length} Steps</Badge> */}
             {workflow.creditCost !== undefined && (
               <Badge variant="secondary" className="flex items-center">
                 <CreditCard className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
