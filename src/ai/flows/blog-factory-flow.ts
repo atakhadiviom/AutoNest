@@ -27,7 +27,7 @@ const BlogFactoryOutputSchema = z.object({
 export type BlogFactoryOutput = z.infer<typeof BlogFactoryOutputSchema>;
 
 export async function generateBlogPost(input: BlogFactoryInput): Promise<BlogFactoryOutput> {
-  const n8nWebhookUrl = "https://n8n-service-g3uy.onrender.com/webhook-test/blog-factory-form"; // Using webhook-test as per curl example
+  const n8nWebhookUrl = "https://n8n-service-g3uy.onrender.com/webhook/blog-factory-form"; // CORRECTED URL
   let rawResponseText = '';
 
   console.log(`[Blog Factory Flow] Requesting URL: ${n8nWebhookUrl} with query: "${input.researchQuery}"`);
@@ -52,14 +52,16 @@ export async function generateBlogPost(input: BlogFactoryInput): Promise<BlogFac
     const data = JSON.parse(rawResponseText);
     console.log("[Blog Factory Flow] Data from n8n webhook:", JSON.stringify(data, null, 2));
 
-    // Expected structure: [{"data":[{"output":{...}}]}]
+    // Expected structure from your example: [{"data":[{"output":{...}}]}]
+    // Let's adjust parsing to be more robust for potential variations, but target this specific structure first.
     const blogData = data?.[0]?.data?.[0]?.output;
 
     if (!blogData || typeof blogData !== 'object') {
       console.error("[Blog Factory Flow] Unexpected data structure from n8n webhook. 'output' object not found or invalid.", data);
-      throw new Error("Failed to parse blog post data from n8n webhook due to unexpected structure.");
+      throw new Error("Failed to parse blog post data from n8n webhook due to unexpected structure. Ensure the webhook returns data in the format: [{'data':[{'output':{...}}]}]");
     }
     
+    // Ensure all fields are strings or handled appropriately
     const processedOutput = {
       slug: String(blogData.slug || `generated-slug-${Date.now()}`),
       title: String(blogData.title || "Untitled Post"),
@@ -70,6 +72,7 @@ export async function generateBlogPost(input: BlogFactoryInput): Promise<BlogFac
       rawResponse: rawResponseText,
     };
     
+    // Validate the processed output against the Zod schema
     const validationResult = BlogFactoryOutputSchema.safeParse(processedOutput);
     if (!validationResult.success) {
         console.error("[Blog Factory Flow] Validation error for n8n output:", validationResult.error.flatten());
