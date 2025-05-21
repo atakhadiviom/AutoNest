@@ -21,7 +21,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { Spinner, FullPageLoader } from "@/components/ui/loader";
 import { useToast } from "@/hooks/use-toast";
 
-const PAYPAL_CLIENT_ID = "AfxvMbf0Sdap_JVtGjI0rEe62y3zs4iGfFeTmKySR7VH-sO06IP7dO_fvIkkx3RRkjRBW52kfklQmVg3"; // Live Client ID
+const PAYPAL_CLIENT_ID = "AXphOTlKv9G2m2wdB1UUy5yLd9ld4NRW1bh40Zxq7h-O6Si1TehB5gYYmRtM5i2Y6MjzxZdwpQpG1vxX"; // Sandbox Client ID
 const CREDITS_PER_DOLLAR = 100;
 
 function PayPalPaymentButtons({
@@ -307,12 +307,12 @@ export default function BillingPage() {
   const scriptProviderOptions = {
     "client-id": PAYPAL_CLIENT_ID,
     currency: "USD",
-    "enable-funding": "venmo", // As per user's sample
-    "disable-funding": "",    // As per user's sample
-    "buyer-country": "US",   // As per user's sample
-    components: "buttons",   // As per user's sample
-    "data-page-type": "product-details",         // As per user's sample
-    "data-sdk-integration-source": "developer-studio", // As per user's sample
+    "enable-funding": "venmo",
+    "disable-funding": "",
+    "buyer-country": "US",
+    components: "buttons",
+    "data-page-type": "product-details",
+    "data-sdk-integration-source": "developer-studio",
   };
 
   return (
@@ -333,7 +333,7 @@ export default function BillingPage() {
                 <DollarSign className="h-6 w-6 text-primary" />
                 <div>
                     <p className="text-xs text-muted-foreground">Current Balance</p>
-                    <p className="font-semibold text-2xl text-primary">${displayedDollarValue}</p>
+                    <p className="font-semibold text-2xl text-primary">{displayedDollarValue}</p>
                 </div>
             </div>
           </Card>
@@ -345,7 +345,7 @@ export default function BillingPage() {
             <CardDescription>
               Securely add credits to your account using PayPal. ({CREDITS_PER_DOLLAR} Credits = $1.00 USD)
             </CardDescription>
-             {(!PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID.startsWith("YOUR_") ) && ( // Should not trigger with live key
+             {(!PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID.startsWith("YOUR_") ) && (
                 <Alert variant="destructive" className="mt-2">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>PayPal Not Configured</AlertTitle>
@@ -465,3 +465,5 @@ export default function BillingPage() {
     </AppLayout>
   );
 }
+
+    
