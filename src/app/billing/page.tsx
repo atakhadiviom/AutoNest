@@ -22,7 +22,7 @@ declare global {
   }
 }
 
-const PAYPAL_CLIENT_ID = "AZ3-_vosN0BKwL6cU8xa515oeNMdDhPY7zfJKufNH0DA9p1SloCNhF8yRhmSIHXLBlj71Km2ePeYQe2y";
+const PAYPAL_CLIENT_ID = "AXphOTlKv9G2m2wdB1UUy5yLd9ld4NRW1bh40Zxq7h-O6Si1TehB5gYYmRtM5i2Y6MjzxZdwpQpG1vxX";
 const CREDITS_PER_DOLLAR = 100; // 1 credit = $0.01, so 100 credits = $1.00
 
 export default function BillingPage() {
@@ -76,8 +76,12 @@ export default function BillingPage() {
 
     if (paymentProcessing || !isPayPalSdkReady || !window.paypal || creditsToPurchase <= 0 || !PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER") {
       console.log("[renderPayPalButton] Conditions not met, skipping render. SDKReady:", isPayPalSdkReady, "Processing:", paymentProcessing, "CreditsToPurchase:", creditsToPurchase, "ClientID valid:", !!(PAYPAL_CLIENT_ID && PAYPAL_CLIENT_ID !== "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER"));
-      if (creditsToPurchase <= 0 && document.getElementById("paypal-button-container")) { // only show this message if container exists
+      if (creditsToPurchase <= 0 && buttonContainerElement) { 
          buttonContainerElement.innerHTML = '<p class="text-sm text-destructive text-center py-2">Enter a valid amount of credits to purchase.</p>';
+      } else if (buttonContainerElement && (!PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER")) {
+        // This state means the main alert about client ID is already visible.
+        // We can clear previous messages if any.
+        buttonContainerElement.innerHTML = '';
       }
       return;
     }
@@ -191,9 +195,9 @@ export default function BillingPage() {
   }, [isPayPalSdkReady, creditsToPurchase, addCredits, toast, paymentProcessing]); // paymentProcessing added
 
   useEffect(() => {
+    const container = document.getElementById("paypal-button-container");
     if (isPayPalSdkReady && !paymentProcessing && creditsToPurchase > 0 && PAYPAL_CLIENT_ID && PAYPAL_CLIENT_ID !== "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER") {
       console.log("[useEffect for renderPayPalButton] Conditions met. Key:", paypalButtonKey, "Attempting to find container...");
-      const container = document.getElementById("paypal-button-container");
       if (container) {
         console.log("[useEffect for renderPayPalButton] Container 'paypal-button-container' found, calling renderPayPalButton.");
         renderPayPalButton(container);
@@ -202,11 +206,11 @@ export default function BillingPage() {
       }
     } else {
       console.log("[useEffect for renderPayPalButton] Conditions NOT met for rendering PayPal button. SDKReady:", isPayPalSdkReady, "Processing:", paymentProcessing, "Credits:", creditsToPurchase, "Key:", paypalButtonKey);
-       const container = document.getElementById("paypal-button-container");
-        if (container && creditsToPurchase <= 0) {
+       if (container && creditsToPurchase <= 0) {
              container.innerHTML = '<p class="text-sm text-destructive text-center py-2">Enter a valid amount of credits to purchase.</p>';
         } else if (container && (!PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER")) {
              // Error about client ID is handled by the main alert
+             container.innerHTML = ''; // Clear previous messages
         } else if (container && !isPayPalSdkReady && PAYPAL_CLIENT_ID && PAYPAL_CLIENT_ID !== "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER") {
             // SDK loading message is handled elsewhere
         }
@@ -393,3 +397,4 @@ export default function BillingPage() {
 
 
     
+
