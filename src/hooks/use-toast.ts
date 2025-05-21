@@ -1,3 +1,4 @@
+
 "use client"
 
 // Inspired by react-hot-toast library
@@ -135,9 +136,13 @@ let memoryState: State = { toasts: [] }
 
 function dispatch(action: Action) {
   memoryState = reducer(memoryState, action)
-  listeners.forEach((listener) => {
-    listener(memoryState)
-  })
+  // Defer listener notification to the next event loop cycle
+  // to prevent updates during an existing render cycle.
+  setTimeout(() => {
+    listeners.forEach((listener) => {
+      listener(memoryState)
+    })
+  }, 0);
 }
 
 type Toast = Omit<ToasterToast, "id">
