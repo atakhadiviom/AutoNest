@@ -22,7 +22,7 @@ declare global {
   }
 }
 
-const PAYPAL_CLIENT_ID_PLACEHOLDER = "YOUR_SANDBOX_CLIENT_ID"; // IMPORTANT: Replace with your actual Sandbox Client ID
+const PAYPAL_CLIENT_ID = "AZ3-_vosN0BKwL6cU8xa515oeNMdDhPY7zfJKufNH0DA9p1SloCNhF8yRhmSIHXLBlj71Km2ePeYQe2y"; // Updated Client ID
 const CREDITS_PER_DOLLAR = 100; // 1 credit = $0.01, so 100 credits = $1.00
 
 export default function BillingPage() {
@@ -45,15 +45,15 @@ export default function BillingPage() {
     }
 
     const script = document.createElement("script");
-    // IMPORTANT: Replace PAYPAL_CLIENT_ID_PLACEHOLDER with your actual PayPal Sandbox Client ID
-    if (PAYPAL_CLIENT_ID_PLACEHOLDER === "YOUR_SANDBOX_CLIENT_ID") {
-        console.warn("PayPal Client ID is a placeholder. Please replace it with your actual Sandbox Client ID.");
+    
+    if (PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID" || !PAYPAL_CLIENT_ID) { // Check if ID is placeholder or empty
+        console.warn("PayPal Client ID is a placeholder or missing. Please replace it with your actual Sandbox Client ID.");
         setPaymentError("PayPal integration is not fully configured. Please provide a Sandbox Client ID.");
         // Do not attempt to load script if ID is placeholder
         return;
     }
 
-    script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID_PLACEHOLDER}&currency=USD&disable-funding=credit,card`;
+    script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&currency=USD&disable-funding=credit,card`;
     script.onload = () => {
       setIsPayPalSdkReady(true);
       console.log("PayPal SDK loaded.");
@@ -73,7 +73,7 @@ export default function BillingPage() {
 
 
   const renderPayPalButton = useCallback(() => {
-    if (!isPayPalSdkReady || !window.paypal || creditsToPurchase <= 0 || PAYPAL_CLIENT_ID_PLACEHOLDER === "YOUR_SANDBOX_CLIENT_ID") {
+    if (!isPayPalSdkReady || !window.paypal || creditsToPurchase <= 0 || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID" || !PAYPAL_CLIENT_ID) {
       return;
     }
     setPaymentError(null); // Clear previous errors
@@ -218,12 +218,12 @@ export default function BillingPage() {
             <CardDescription>
               Securely add credits to your account using PayPal Sandbox. (1 Credit = $0.01 USD)
             </CardDescription>
-             {PAYPAL_CLIENT_ID_PLACEHOLDER === "YOUR_SANDBOX_CLIENT_ID" && (
+             {(PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID" || !PAYPAL_CLIENT_ID) && (
                 <Alert variant="destructive" className="mt-2">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>PayPal Not Configured</AlertTitle>
                     <AlertDescription>
-                    The PayPal Client ID is a placeholder. This section will not function until a valid Sandbox Client ID is provided in the code.
+                    The PayPal Client ID is a placeholder or missing. This section will not function until a valid Sandbox Client ID is provided in the code.
                     </AlertDescription>
                 </Alert>
             )}
@@ -259,7 +259,7 @@ export default function BillingPage() {
               </Alert>
             )}
 
-            {isPayPalSdkReady && PAYPAL_CLIENT_ID_PLACEHOLDER !== "YOUR_SANDBOX_CLIENT_ID" ? (
+            {isPayPalSdkReady && PAYPAL_CLIENT_ID !== "YOUR_SANDBOX_CLIENT_ID" && PAYPAL_CLIENT_ID ? (
               paymentProcessing ? (
                 <div className="flex items-center justify-center p-4">
                   <Spinner size={32} />
@@ -271,7 +271,7 @@ export default function BillingPage() {
                 </div>
               )
             ) : (
-              !isPayPalSdkReady && PAYPAL_CLIENT_ID_PLACEHOLDER !== "YOUR_SANDBOX_CLIENT_ID" && (
+              !isPayPalSdkReady && PAYPAL_CLIENT_ID !== "YOUR_SANDBOX_CLIENT_ID" && PAYPAL_CLIENT_ID && (
                 <div className="flex items-center justify-center p-4">
                   <Spinner size={32} />
                   <p className="ml-2">Loading PayPal...</p>
@@ -333,3 +333,5 @@ export default function BillingPage() {
     </AppLayout>
   );
 }
+
+    
