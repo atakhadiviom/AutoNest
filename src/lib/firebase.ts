@@ -7,13 +7,13 @@ import { getFirestore, type Firestore } from "firebase/firestore"; // Added Fire
 // IMPORTANT: In a real application, use environment variables for Firebase config.
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyBOUIjVo5UyxtEMltLk_aAUAKgxaPG_8fk",
-  authDomain: "autonest-4f417.firebaseapp.com",
-  projectId: "autonest-4f417",
-  storageBucket: "autonest-4f417.firebasestorage.app",
-  messagingSenderId: "941221968659",
-  appId: "1:941221968659:web:3dc7cdf1127dc34a2eb8e6",
-  measurementId: "G-ZHLQLFJG7G"
+  apiKey: "AIzaSyCWqhM89DGyisi8z_BbO0JRW38HpDbdNRg",
+  authDomain: "autonest-vn4w5.firebaseapp.com",
+  projectId: "autonest-vn4w5",
+  storageBucket: "autonest-vn4w5.firebasestorage.app",
+  messagingSenderId: "708319441645",
+  appId: "1:708319441645:web:f873753ef66dc1c0c192e4"
+  // measurementId is optional, so it can be omitted if not provided or needed
 };
 
 // Initialize Firebase
@@ -25,7 +25,10 @@ let analytics: Analytics | undefined;
 if (typeof window !== 'undefined') {
   isSupported().then(supported => {
     if (supported) {
-      analytics = getAnalytics(app);
+      // Check if measurementId is present before initializing analytics
+      if (firebaseConfig.projectId) { // Use projectId or appId as a proxy for a valid config
+        analytics = getAnalytics(app);
+      }
     }
   }).catch(err => {
     console.error("Failed to initialize Analytics:", err);
