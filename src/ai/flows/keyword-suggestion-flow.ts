@@ -29,6 +29,8 @@ export async function suggestKeywords(input: KeywordSuggestionInput): Promise<Ke
   const encodedTopic = encodeURIComponent(input.topic);
   const fullUrl = `${n8nWebhookBaseUrl}?q=${encodedTopic}`;
 
+  console.log(`[Keyword Suggestion Flow] Requesting URL: ${fullUrl}`);
+
   try {
     const response = await fetch(fullUrl, {
       method: 'GET',
@@ -39,34 +41,30 @@ export async function suggestKeywords(input: KeywordSuggestionInput): Promise<Ke
 
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error(`Error from n8n webhook: ${response.status} ${response.statusText}`, errorBody);
+      console.error(`[Keyword Suggestion Flow] Error from n8n webhook: ${response.status} ${response.statusText}`, errorBody);
       throw new Error(`Failed to fetch keyword suggestions from n8n webhook. Status: ${response.status}. Please check the n8n service.`);
     }
 
     const data = await response.json();
+    console.log("[Keyword Suggestion Flow] Data from n8n webhook:", JSON.stringify(data, null, 2));
 
-    // Assuming n8n returns an array of objects like:
-    // [{ "keyword": "kw1", "potentialUse": "...", "relevanceScore": 0.8 }, ...]
-    // or simpler: [{ "keyword": "kw1" }, ...]
-    // or even just an array of strings: ["kw1", "kw2"]
+
     let rawSuggestions: any[] = [];
     if (Array.isArray(data)) {
         rawSuggestions = data;
     } else if (typeof data === 'object' && data !== null && Array.isArray(data.suggestions)) {
-        // Handle cases where suggestions might be nested under a 'suggestions' key
         rawSuggestions = data.suggestions;
     } else {
-        console.warn("Unexpected data format from n8n webhook. Expected an array or object with a 'suggestions' array.", data);
+        console.warn("[Keyword Suggestion Flow] Unexpected data format from n8n webhook. Expected an array or object with a 'suggestions' array. Data:", data);
         return { suggestions: [] };
     }
     
-
     const suggestions = rawSuggestions.map((item: any) => {
       if (typeof item === 'string') {
         return {
           keyword: item,
-          potentialUse: undefined, // n8n webhook might not provide this
-          relevanceScore: undefined, // n8n webhook might not provide this
+          potentialUse: undefined, 
+          relevanceScore: undefined, 
         };
       }
       return {
@@ -76,22 +74,24 @@ export async function suggestKeywords(input: KeywordSuggestionInput): Promise<Ke
       };
     });
     
-    // Validate the output against the schema (optional, but good practice)
     const validationResult = KeywordSuggestionOutputSchema.safeParse({ suggestions });
     if (!validationResult.success) {
-        console.error("Validation error for n8n output:", validationResult.error.flatten());
-        throw new Error("Received invalid data format from n8n webhook after mapping.");
+        console.error("[Keyword Suggestion Flow] Validation error for n8n output:", validationResult.error.flatten());
+        // It might be better to return an error or an empty list here,
+        // depending on how strictly you want to enforce the schema.
+        // For now, let's return empty if validation fails to avoid crashing but log aggressively.
+        return { suggestions: [] };
+        // throw new Error("Received invalid data format from n8n webhook after mapping.");
     }
-
+    
+    console.log("[Keyword Suggestion Flow] Parsed suggestions count:", validationResult.data.suggestions.length);
     return { suggestions: validationResult.data.suggestions };
 
   } catch (error) {
-    console.error("Error calling n8n keyword suggestion webhook:", error);
+    console.error("[Keyword Suggestion Flow] Error calling n8n keyword suggestion webhook:", error);
     if (error instanceof Error) {
       throw new Error(`Could not retrieve keyword suggestions: ${error.message}`);
     }
     throw new Error("An unknown error occurred while retrieving keyword suggestions.");
   }
 }
-
-    

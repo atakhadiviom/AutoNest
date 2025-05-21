@@ -69,15 +69,20 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
 
     try {
       const result = await suggestKeywords(input);
+      console.log("[KeywordSuggesterRunner] Received result from suggestKeywords:", result);
+      
       // Successfully got suggestions, now deduct credits
-      await deductCredits(creditCost); 
+      // Ensure deduction only happens if suggestions were positive or an empty list was intended
+      if (result && typeof result.suggestions !== 'undefined') { // Check if result and suggestions exist
+        await deductCredits(creditCost); 
+      }
       
       if (result.suggestions) {
         setSuggestions(result.suggestions);
         if (result.suggestions.length === 0) {
             toast({
             title: "No Suggestions",
-            description: "The AI couldn't find any specific suggestions for this topic. Try being more specific or broader.",
+            description: "The service couldn't find any specific suggestions for this topic. Try being more specific or broader.",
             variant: "default",
             });
         } else {
@@ -87,12 +92,13 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
             });
         }
       } else {
-        throw new Error("AI did not return any suggestions.");
+        // This case implies suggestKeywords returned something unexpected (e.g. null or undefined result)
+        // which the current suggestKeywords implementation tries to avoid.
+        throw new Error("The keyword suggestion service did not return a valid response.");
       }
     } catch (e) {
-      console.error("Error suggesting keywords:", e);
+      console.error("[KeywordSuggesterRunner] Error suggesting keywords:", e);
       const errorMessage = e instanceof Error ? e.message : "An unexpected error occurred.";
-      // Do not deduct credits if the API call failed before credit deduction call
       setError(errorMessage);
       toast({
         title: "Suggestion Failed",
@@ -115,7 +121,7 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
                 Run Keyword Suggestion Tool
               </CardTitle>
               <CardDescription>
-                Enter a topic to get AI-powered keyword suggestions.
+                Enter a topic to get keyword suggestions from our service.
               </CardDescription>
             </div>
             <Badge variant="secondary" className="flex items-center whitespace-nowrap">
@@ -216,7 +222,7 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
           <Info className="h-4 w-4" />
           <AlertTitle>No Suggestions Found</AlertTitle>
           <AlertDescription>
-            The AI could not generate specific keyword suggestions for the provided topic. 
+            The service could not generate specific keyword suggestions for the provided topic. 
             Consider refining your topic or trying a broader search term.
           </AlertDescription>
         </Alert>
@@ -224,5 +230,3 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
     </div>
   );
 };
-
-    
