@@ -27,7 +27,7 @@ const BlogFactoryOutputSchema = z.object({
 export type BlogFactoryOutput = z.infer<typeof BlogFactoryOutputSchema>;
 
 export async function generateBlogPost(input: BlogFactoryInput): Promise<BlogFactoryOutput> {
-  const n8nWebhookUrl = "https://n8n-service-g3uy.onrender.com/webhook/blog-factory-form"; // CORRECTED URL
+  const n8nWebhookUrl = "https://n8n-service-g3uy.onrender.com/webhook/blog-factory-form";
   let rawResponseText = '';
 
   console.log(`[Blog Factory Flow] Requesting URL: ${n8nWebhookUrl} with query: "${input.researchQuery}"`);
@@ -46,14 +46,12 @@ export async function generateBlogPost(input: BlogFactoryInput): Promise<BlogFac
 
     if (!response.ok) {
       console.error(`[Blog Factory Flow] Error from n8n webhook: ${response.status} ${response.statusText}`, rawResponseText);
-      throw new Error(`Failed to generate blog post from n8n webhook. Status: ${response.status}. Response: ${rawResponseText}`);
+      throw new Error(`Failed to generate blog post from n8n webhook. Status: ${response.status} ${response.statusText}. Response: ${rawResponseText}`);
     }
     
     const data = JSON.parse(rawResponseText);
     console.log("[Blog Factory Flow] Data from n8n webhook:", JSON.stringify(data, null, 2));
 
-    // Expected structure from your example: [{"data":[{"output":{...}}]}]
-    // Let's adjust parsing to be more robust for potential variations, but target this specific structure first.
     const blogData = data?.[0]?.data?.[0]?.output;
 
     if (!blogData || typeof blogData !== 'object') {
@@ -61,7 +59,6 @@ export async function generateBlogPost(input: BlogFactoryInput): Promise<BlogFac
       throw new Error("Failed to parse blog post data from n8n webhook due to unexpected structure. Ensure the webhook returns data in the format: [{'data':[{'output':{...}}]}]");
     }
     
-    // Ensure all fields are strings or handled appropriately
     const processedOutput = {
       slug: String(blogData.slug || `generated-slug-${Date.now()}`),
       title: String(blogData.title || "Untitled Post"),
@@ -72,7 +69,6 @@ export async function generateBlogPost(input: BlogFactoryInput): Promise<BlogFac
       rawResponse: rawResponseText,
     };
     
-    // Validate the processed output against the Zod schema
     const validationResult = BlogFactoryOutputSchema.safeParse(processedOutput);
     if (!validationResult.success) {
         console.error("[Blog Factory Flow] Validation error for n8n output:", validationResult.error.flatten());
@@ -83,11 +79,17 @@ export async function generateBlogPost(input: BlogFactoryInput): Promise<BlogFac
     return validationResult.data;
 
   } catch (error) {
-    console.error("[Blog Factory Flow] Error calling n8n blog factory webhook:", error);
-    // Rethrow with a more user-friendly message, keeping rawResponse if available
+    console.error("[Blog Factory Flow] Error in blog post generation process:", error);
+    let detail = "No specific error message identified.";
     if (error instanceof Error) {
-      throw new Error(`Blog post generation failed: ${error.message}. Raw response: ${rawResponseText || "N/A"}`);
+      detail = error.message;
+    } else if (typeof error === 'string') {
+      detail = error;
+    } else if (error && typeof error.toString === 'function') {
+      detail = error.toString();
     }
-    throw new Error(`An unknown error occurred during blog post generation. Raw response: ${rawResponseText || "N/A"}`);
+    
+    const responseInfo = rawResponseText ? `Raw Response Text: ${rawResponseText}` : "Raw response text not available (error might have occurred before or during fetching response body).";
+    throw new Error(`Blog post generation failed. Detail: ${detail}. ${responseInfo}`);
   }
 }
