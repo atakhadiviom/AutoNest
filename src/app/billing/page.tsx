@@ -138,10 +138,10 @@ export default function BillingPage() {
             setPaymentProcessing(false);
         },
         onError: (err: any) => {
-          console.error("PayPal Button Error (onError triggered):", err);
+          console.error("PayPal Button Error (onError triggered):", err); // Log the raw error
           const message = err.message ? String(err.message).toLowerCase() : "";
           if (message.includes("window closed") || message.includes("popup closed")) {
-            console.log("PayPal onError: Detected window closed. Treating as cancellation.");
+            console.log("PayPal onError: Detected window closed. Treating as cancellation."); // Specific log
             setPaymentError("Payment process was cancelled or the window was closed.");
             toast({
               title: "Payment Cancelled",
@@ -149,6 +149,7 @@ export default function BillingPage() {
               variant: "default",
             });
           } else {
+            // This branch handles other PayPal errors
             console.error("PayPal onError: Non-cancellation error:", err.message || err);
             setPaymentError(`PayPal Error: ${err.message || "An error occurred with PayPal."}`);
             toast({
@@ -157,7 +158,7 @@ export default function BillingPage() {
               variant: "destructive",
             });
           }
-          setPaymentProcessing(false);
+          setPaymentProcessing(false); // Ensures processing state is reset
         },
         style: {
             layout: 'vertical',
