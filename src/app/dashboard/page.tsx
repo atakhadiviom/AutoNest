@@ -5,9 +5,9 @@ import { WorkflowCard } from "@/components/workflows/workflow-card";
 import { WorkflowSearch } from "@/components/workflows/workflow-search";
 import { mockWorkflows } from "@/lib/mock-data";
 import type { Workflow } from "@/lib/types";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import { PlusCircle, Database } from "lucide-react";
+// import { Button } from "@/components/ui/button"; // Button not needed here anymore
+// import Link from "next/link"; // Link not needed here anymore
+import { Database } from "lucide-react"; // PlusCircle removed
 import { useState, useMemo } from "react";
 
 export default function DashboardPage() {
@@ -34,11 +34,14 @@ export default function DashboardPage() {
               Manage and view all your automated processes.
             </p>
           </div>
+          {/* Removed Create New Workflow button */}
+          {/* 
           <Button asChild size="lg">
             <Link href="/workflows/new">
               <PlusCircle className="mr-2 h-5 w-5" /> Create New Workflow
             </Link>
-          </Button>
+          </Button> 
+          */}
         </div>
 
         <WorkflowSearch onSearchChange={setSearchTerm} />
@@ -54,10 +57,7 @@ export default function DashboardPage() {
             <Database className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
             <h2 className="text-xl font-semibold text-foreground">No Workflows Found</h2>
             <p className="text-muted-foreground mt-2">
-              {searchTerm ? "Try adjusting your search term or " : "Get started by "}
-              <Link href="/workflows/new" className="text-primary hover:underline">
-                creating a new workflow
-              </Link>.
+              {searchTerm ? "No workflows match your search term." : "There are no workflows available at the moment."}
             </p>
           </div>
         )}

@@ -1,5 +1,5 @@
 import type { Workflow } from "@/lib/types";
-import { FileText, Mail, BarChart2, ShoppingCart, Users, CreditCard } from "lucide-react";
+import { FileText, Mail, BarChart2, ShoppingCart, Users, CreditCard, Repeat, History } from "lucide-react";
 
 export const mockWorkflows: Workflow[] = [
   {
@@ -17,6 +17,8 @@ export const mockWorkflows: Workflow[] = [
       { id: "s4", description: "Follow-up after 7 days.", requiredInputs: ["customer_id"] },
     ],
     creditCost: 5,
+    usageCount: 125,
+    lastRunDate: "2023-07-28T10:15:00Z",
   },
   {
     id: "2",
@@ -34,6 +36,8 @@ export const mockWorkflows: Workflow[] = [
       { id: "s5", description: "Schedule for publication.", requiredInputs: ["approved_document_id", "publication_date"] },
     ],
     creditCost: 8,
+    usageCount: 78,
+    lastRunDate: "2023-07-25T16:45:00Z",
   },
   {
     id: "3",
@@ -50,6 +54,8 @@ export const mockWorkflows: Workflow[] = [
       { id: "s4", description: "Follow-up call prompt for sales rep (Day 10).", requiredInputs: ["lead_id", "sales_rep_assignee"] },
     ],
     creditCost: 10,
+    usageCount: 210,
+    lastRunDate: "2023-07-29T09:00:00Z",
   },
   {
     id: "4",
@@ -67,6 +73,8 @@ export const mockWorkflows: Workflow[] = [
       { id: "s5", description: "Distribute report to stakeholders.", requiredInputs: ["final_report_pdf", "stakeholder_email_list"] },
     ],
     creditCost: 15,
+    usageCount: 5,
+    lastRunDate: "2023-07-01T12:00:00Z",
   },
    {
     id: "5",
@@ -84,5 +92,7 @@ export const mockWorkflows: Workflow[] = [
       { id: "s5", description: "Dispatch package and notify customer.", requiredInputs: ["tracking_number", "customer_email"] },
     ],
     creditCost: 7,
+    usageCount: 350,
+    lastRunDate: "2023-09-05T18:00:00Z",
   },
 ];

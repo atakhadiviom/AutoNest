@@ -13,5 +13,8 @@ export type Workflow = {
   steps: WorkflowStep[];
   creatorEmail?: string; 
   icon?: React.ComponentType<{ className?: string }>;
-  creditCost?: number; // Added creditCost field
+  creditCost?: number;
+  usageCount: number; // Added usageCount
+  lastRunDate?: string; // Added optional lastRunDate
 };
+

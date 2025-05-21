@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type { HTMLAttributes} from "react";
-import { LayoutDashboard, PlusCircle } from "lucide-react";
+import { LayoutDashboard } from "lucide-react"; // Removed PlusCircle
 
 interface MainNavProps extends HTMLAttributes<HTMLElement> {}
 
@@ -18,12 +18,12 @@ export function MainNav({ className, ...props }: MainNavProps) {
       icon: LayoutDashboard,
       active: pathname === "/dashboard",
     },
-    {
-      href: "/workflows/new",
-      label: "New Workflow",
-      icon: PlusCircle,
-      active: pathname === "/workflows/new",
-    },
+    // { // Removed New Workflow link
+    //   href: "/workflows/new",
+    //   label: "New Workflow",
+    //   icon: PlusCircle,
+    //   active: pathname === "/workflows/new",
+    // },
   ];
 
   return (
