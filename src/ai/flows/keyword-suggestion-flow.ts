@@ -62,14 +62,15 @@ export async function suggestKeywords(input: KeywordSuggestionInput): Promise<Ke
     const suggestions = rawSuggestions.map((item: any) => {
       if (typeof item === 'string') {
         return {
-          keyword: item,
+          keyword: item, // String item is already a string
           potentialUse: undefined, 
           relevanceScore: undefined, 
         };
       }
+      // Ensure keyword and potentialUse are strings for schema validation
       return {
-        keyword: item.keyword || "Unknown keyword",
-        potentialUse: item.potentialUse,
+        keyword: String(item.keyword || "Unknown keyword"),
+        potentialUse: item.potentialUse ? String(item.potentialUse) : undefined,
         relevanceScore: typeof item.relevanceScore === 'number' ? Math.min(1, Math.max(0, item.relevanceScore)) : undefined,
       };
     });
@@ -77,11 +78,8 @@ export async function suggestKeywords(input: KeywordSuggestionInput): Promise<Ke
     const validationResult = KeywordSuggestionOutputSchema.safeParse({ suggestions });
     if (!validationResult.success) {
         console.error("[Keyword Suggestion Flow] Validation error for n8n output:", validationResult.error.flatten());
-        // It might be better to return an error or an empty list here,
-        // depending on how strictly you want to enforce the schema.
-        // For now, let's return empty if validation fails to avoid crashing but log aggressively.
+        // Return empty list if validation fails, but log the error for debugging.
         return { suggestions: [] };
-        // throw new Error("Received invalid data format from n8n webhook after mapping.");
     }
     
     console.log("[Keyword Suggestion Flow] Parsed suggestions count:", validationResult.data.suggestions.length);
