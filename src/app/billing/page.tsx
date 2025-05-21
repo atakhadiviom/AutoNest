@@ -1,3 +1,4 @@
+
 "use client";
 
 import AppLayout from "@/components/layout/app-layout";
@@ -5,8 +6,42 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { CreditCard, DollarSign, PlusCircle } from "lucide-react";
 import Image from "next/image";
+import { useAuth } from "@/contexts/auth-context"; // Import useAuth
+import { Spinner } from "@/components/ui/loader"; // Import Spinner
 
 export default function BillingPage() {
+  const { user, loading, addCredits } = useAuth(); // Get user, loading, and addCredits
+
+  const handleAddCredits = () => {
+    // In a real app, this would trigger a payment flow.
+    // For simulation, we'll just add a fixed amount.
+    addCredits(50); 
+  };
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex justify-center items-center h-64">
+          <Spinner size={36} /> Loading billing information...
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (!user) {
+    return (
+      <AppLayout>
+        <div className="text-center py-10">
+          <p>Please log in to view billing information.</p>
+        </div>
+      </AppLayout>
+    );
+  }
+  
+  // Format credits for display, ensuring it's a number
+  const currentCredits = typeof user.credits === 'number' ? user.credits.toFixed(2) : '0.00';
+
+
   return (
     <AppLayout>
       <div className="space-y-8">
@@ -20,27 +55,27 @@ export default function BillingPage() {
               Manage your subscription, view payment history, and update your details.
             </p>
           </div>
-          <Button size="lg">
-            <PlusCircle className="mr-2 h-5 w-5" /> Add Credits
+          <Button size="lg" onClick={handleAddCredits}>
+            <PlusCircle className="mr-2 h-5 w-5" /> Add 50 Credits (Simulated)
           </Button>
         </div>
 
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle className="text-xl">Current Plan</CardTitle>
-            <CardDescription>Your active subscription details.</CardDescription>
+            <CardTitle className="text-xl">Current Plan & Credits</CardTitle>
+            <CardDescription>Your active subscription details and credit balance.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex justify-between items-center p-4 border rounded-lg bg-muted/30">
               <div>
-                <h3 className="font-semibold text-lg text-foreground">Pro Plan</h3>
-                <p className="text-muted-foreground">Billed monthly at $49.00</p>
+                <h3 className="font-semibold text-lg text-foreground">Pro Plan (Example)</h3>
+                <p className="text-muted-foreground">Billed monthly at $49.00 (Example)</p>
               </div>
-              <Button variant="outline">Change Plan</Button>
+              <Button variant="outline" disabled>Change Plan (Soon)</Button>
             </div>
             <div className="flex justify-between items-center">
-              <p className="text-muted-foreground">Next billing date: October 26, 2024</p>
-              <p className="font-semibold text-xl text-primary">$10.00 <span className="text-sm text-muted-foreground">Remaining Credits</span></p>
+              <p className="text-muted-foreground">Next billing date: October 26, 2024 (Example)</p>
+              <p className="font-semibold text-xl text-primary">${currentCredits} <span className="text-sm text-muted-foreground">Remaining Credits</span></p>
             </div>
           </CardContent>
         </Card>
@@ -59,10 +94,10 @@ export default function BillingPage() {
                   <p className="text-xs text-muted-foreground">Expires 12/2025</p>
                 </div>
               </div>
-              <Button variant="ghost" size="sm">Edit</Button>
+              <Button variant="ghost" size="sm" disabled>Edit (Soon)</Button>
             </div>
-            <Button variant="outline">
-              <PlusCircle className="mr-2 h-4 w-4" /> Add New Payment Method
+            <Button variant="outline" disabled>
+              <PlusCircle className="mr-2 h-4 w-4" /> Add New Payment Method (Soon)
             </Button>
           </CardContent>
         </Card>
