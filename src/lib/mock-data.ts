@@ -1,0 +1,83 @@
+import type { Workflow } from "@/lib/types";
+import { FileText, Mail, BarChart2, ShoppingCart, Users } from "lucide-react";
+
+export const mockWorkflows: Workflow[] = [
+  {
+    id: "1",
+    name: "Customer Onboarding",
+    description: "Automated process for welcoming new customers and guiding them through initial setup.",
+    createdAt: "2023-01-15T10:00:00Z",
+    updatedAt: "2023-05-20T14:30:00Z",
+    creatorEmail: "manager@example.com",
+    icon: Users,
+    steps: [
+      { id: "s1", description: "Send welcome email with resources.", requiredInputs: ["customer_email", "customer_name"] },
+      { id: "s2", description: "Schedule onboarding call.", requiredInputs: ["customer_id", "calendar_access"] },
+      { id: "s3", description: "Grant access to platform features.", requiredInputs: ["customer_id", "feature_list"] },
+      { id: "s4", description: "Follow-up after 7 days.", requiredInputs: ["customer_id"] },
+    ],
+  },
+  {
+    id: "2",
+    name: "Content Approval Pipeline",
+    description: "Streamlines the review and approval process for marketing content before publication.",
+    createdAt: "2023-02-01T09:00:00Z",
+    updatedAt: "2023-06-10T11:00:00Z",
+    creatorEmail: "editor@example.com",
+    icon: FileText,
+    steps: [
+      { id: "s1", description: "Submit content draft.", requiredInputs: ["draft_document", "author_name"] },
+      { id: "s2", description: "Editorial review.", requiredInputs: ["draft_document_id"] },
+      { id: "s3", description: "Legal team review (if applicable).", requiredInputs: ["draft_document_id", "content_category"] },
+      { id: "s4", description: "Final approval from marketing head.", requiredInputs: ["draft_document_id"] },
+      { id: "s5", description: "Schedule for publication.", requiredInputs: ["approved_document_id", "publication_date"] },
+    ],
+  },
+  {
+    id: "3",
+    name: "Sales Lead Nurturing",
+    description: "A sequence of automated communications to nurture sales leads over time.",
+    createdAt: "2023-03-10T16:00:00Z",
+    updatedAt: "2023-07-01T10:00:00Z",
+    creatorEmail: "saleslead@example.com",
+    icon: Mail,
+    steps: [
+      { id: "s1", description: "Initial contact email (Day 1).", requiredInputs: ["lead_email", "lead_name"] },
+      { id: "s2", description: "Share relevant case study (Day 3).", requiredInputs: ["lead_email", "industry_segment"] },
+      { id: "s3", description: "Invite to webinar (Day 7).", requiredInputs: ["lead_email", "webinar_topic"] },
+      { id: "s4", description: "Follow-up call prompt for sales rep (Day 10).", requiredInputs: ["lead_id", "sales_rep_assignee"] },
+    ],
+  },
+  {
+    id: "4",
+    name: "Monthly Financial Reporting",
+    description: "Generates and distributes monthly financial reports to stakeholders.",
+    createdAt: "2023-04-05T11:00:00Z",
+    updatedAt: "2023-06-25T09:30:00Z",
+    creatorEmail: "finance@example.com",
+    icon: BarChart2,
+    steps: [
+      { id: "s1", description: "Collect data from all financial systems.", requiredInputs: ["system_api_keys", "date_range"] },
+      { id: "s2", description: "Generate P&L statement.", requiredInputs: ["collected_data"] },
+      { id: "s3", description: "Generate Balance Sheet.", requiredInputs: ["collected_data"] },
+      { id: "s4", description: "Compile executive summary.", requiredInputs: ["p&l_data", "balance_sheet_data"] },
+      { id: "s5", description: "Distribute report to stakeholders.", requiredInputs: ["final_report_pdf", "stakeholder_email_list"] },
+    ],
+  },
+   {
+    id: "5",
+    name: "E-commerce Order Fulfillment",
+    description: "Manages the process from order placement to shipping for an online store.",
+    createdAt: "2023-08-15T14:00:00Z",
+    updatedAt: "2023-09-01T10:30:00Z",
+    creatorEmail: "ops@example.com",
+    icon: ShoppingCart,
+    steps: [
+      { id: "s1", description: "Receive new order notification.", requiredInputs: ["order_id", "customer_details", "item_list"] },
+      { id: "s2", description: "Check inventory levels.", requiredInputs: ["item_list", "warehouse_id"] },
+      { id: "s3", description: "Pick and pack items.", requiredInputs: ["order_id", "picking_slip"] },
+      { id: "s4", description: "Generate shipping label.", requiredInputs: ["customer_address", "package_dimensions", "package_weight"] },
+      { id: "s5", description: "Dispatch package and notify customer.", requiredInputs: ["tracking_number", "customer_email"] },
+    ],
+  },
+];
