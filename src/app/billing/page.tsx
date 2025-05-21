@@ -22,7 +22,7 @@ declare global {
   }
 }
 
-const PAYPAL_CLIENT_ID = "AZ3-_vosN0BKwL6cU8xa515oeNMdDhPY7zfJKufNH0DA9p1SloCNhF8yRhmSIHXLBlj71Km2ePeYQe2y"; // Updated Client ID
+const PAYPAL_CLIENT_ID = "AZ3-_vosN0BKwL6cU8xa515oeNMdDhPY7zfJKufNH0DA9p1SloCNhF8yRhmSIHXLBlj71Km2ePeYQe2y";
 const CREDITS_PER_DOLLAR = 100; // 1 credit = $0.01, so 100 credits = $1.00
 
 export default function BillingPage() {
@@ -46,10 +46,9 @@ export default function BillingPage() {
 
     const script = document.createElement("script");
     
-    if (PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID" || !PAYPAL_CLIENT_ID) { // Check if ID is placeholder or empty
+    if (PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER" || !PAYPAL_CLIENT_ID) { 
         console.warn("PayPal Client ID is a placeholder or missing. Please replace it with your actual Sandbox Client ID.");
         setPaymentError("PayPal integration is not fully configured. Please provide a Sandbox Client ID.");
-        // Do not attempt to load script if ID is placeholder
         return;
     }
 
@@ -66,19 +65,17 @@ export default function BillingPage() {
     document.body.appendChild(script);
 
     return () => {
-      // Clean up script if component unmounts, though PayPal SDK might persist
-      // For robust cleanup, a library like @paypal/react-paypal-js is better
+      // Basic cleanup
     };
   }, []);
 
 
   const renderPayPalButton = useCallback(() => {
-    if (!isPayPalSdkReady || !window.paypal || creditsToPurchase <= 0 || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID" || !PAYPAL_CLIENT_ID) {
+    if (!isPayPalSdkReady || !window.paypal || creditsToPurchase <= 0 || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER" || !PAYPAL_CLIENT_ID) {
       return;
     }
-    setPaymentError(null); // Clear previous errors
+    setPaymentError(null); 
 
-    // Clear previous button if it exists
     const buttonContainer = document.getElementById("paypal-button-container");
     if (buttonContainer) {
       buttonContainer.innerHTML = '';
@@ -97,7 +94,7 @@ export default function BillingPage() {
           return actions.order.create({
             purchase_units: [{
               amount: {
-                value: (creditsToPurchase / CREDITS_PER_DOLLAR).toFixed(2), // PayPal expects string amount
+                value: (creditsToPurchase / CREDITS_PER_DOLLAR).toFixed(2), 
                 currency_code: "USD"
               },
               description: `${creditsToPurchase} AutoNest Credits`
@@ -110,15 +107,13 @@ export default function BillingPage() {
           try {
             const order = await actions.order.capture();
             console.log("PayPal Order Captured:", order);
-            // In a real app, you'd verify this order on your backend with PayPal
-            // For this simulation, we directly add credits
             await addCredits(creditsToPurchase);
             toast({
               title: "Purchase Successful!",
               description: `${creditsToPurchase} credits have been added to your account. Transaction ID: ${order.id}`,
             });
-            setCreditsToPurchase(100); // Reset to default
-            setPaypalButtonKey(prevKey => prevKey + 1); // Force re-render PayPal button for new amount
+            setCreditsToPurchase(100); 
+            setPaypalButtonKey(prevKey => prevKey + 1); 
           } catch (err: any) {
             console.error("Error processing PayPal payment:", err);
             setPaymentError(`Payment failed: ${err.message || "Unknown error"}`);
@@ -131,14 +126,34 @@ export default function BillingPage() {
             setPaymentProcessing(false);
           }
         },
+        onCancel: () => {
+            console.log("PayPal payment cancelled by user.");
+            setPaymentError("Payment process was cancelled.");
+            toast({
+                title: "Payment Cancelled",
+                description: "You have cancelled the payment process.",
+                variant: "default", 
+            });
+            setPaymentProcessing(false);
+        },
         onError: (err: any) => {
           console.error("PayPal Button Error:", err);
-          setPaymentError(`PayPal Error: ${err.message || "An error occurred with PayPal."}`);
-          toast({
-            title: "PayPal Error",
-            description: `An error occurred: ${err.message || "Please try again."}`,
-            variant: "destructive",
-          });
+          const message = err.message ? String(err.message).toLowerCase() : "";
+          if (message.includes("window closed") || message.includes("popup closed")) {
+            setPaymentError("Payment process was cancelled or the window was closed.");
+            toast({
+              title: "Payment Cancelled",
+              description: "The payment window was closed before completion.",
+              variant: "default",
+            });
+          } else {
+            setPaymentError(`PayPal Error: ${err.message || "An error occurred with PayPal."}`);
+            toast({
+              title: "PayPal Error",
+              description: `An error occurred: ${err.message || "Please try again."}`,
+              variant: "destructive",
+            });
+          }
           setPaymentProcessing(false);
         },
         style: {
@@ -154,7 +169,7 @@ export default function BillingPage() {
     }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPayPalSdkReady, creditsToPurchase, addCredits, toast]);
+  }, [isPayPalSdkReady, creditsToPurchase, addCredits, toast, PAYPAL_CLIENT_ID]);
 
   // Effect to render PayPal button when SDK is ready or creditsToPurchase changes
   useEffect(() => {
@@ -218,7 +233,7 @@ export default function BillingPage() {
             <CardDescription>
               Securely add credits to your account using PayPal Sandbox. (1 Credit = $0.01 USD)
             </CardDescription>
-             {(PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID" || !PAYPAL_CLIENT_ID) && (
+             {(PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER" || !PAYPAL_CLIENT_ID) && (
                 <Alert variant="destructive" className="mt-2">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>PayPal Not Configured</AlertTitle>
@@ -237,7 +252,7 @@ export default function BillingPage() {
                   type="number"
                   value={creditsToPurchase}
                   onChange={handleCreditAmountChange}
-                  onBlur={handleAmountBlur} // Re-render PayPal button on blur if amount changed
+                  onBlur={handleAmountBlur} 
                   min="1"
                   className="text-lg p-3"
                   disabled={paymentProcessing}
@@ -259,7 +274,7 @@ export default function BillingPage() {
               </Alert>
             )}
 
-            {isPayPalSdkReady && PAYPAL_CLIENT_ID !== "YOUR_SANDBOX_CLIENT_ID" && PAYPAL_CLIENT_ID ? (
+            {isPayPalSdkReady && PAYPAL_CLIENT_ID !== "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER" && PAYPAL_CLIENT_ID ? (
               paymentProcessing ? (
                 <div className="flex items-center justify-center p-4">
                   <Spinner size={32} />
@@ -271,7 +286,7 @@ export default function BillingPage() {
                 </div>
               )
             ) : (
-              !isPayPalSdkReady && PAYPAL_CLIENT_ID !== "YOUR_SANDBOX_CLIENT_ID" && PAYPAL_CLIENT_ID && (
+              !isPayPalSdkReady && PAYPAL_CLIENT_ID !== "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER" && PAYPAL_CLIENT_ID && (
                 <div className="flex items-center justify-center p-4">
                   <Spinner size={32} />
                   <p className="ml-2">Loading PayPal...</p>
@@ -333,5 +348,3 @@ export default function BillingPage() {
     </AppLayout>
   );
 }
-
-    
