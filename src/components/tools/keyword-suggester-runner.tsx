@@ -9,11 +9,11 @@ import * as z from "zod";
 import { suggestKeywords, type KeywordSuggestionInput, type KeywordSuggestionOutput } from "@/ai/flows/keyword-suggestion-flow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Lightbulb, AlertCircle, Search, Loader2, Info, CreditCard } from "lucide-react";
+import { Lightbulb, AlertCircle, Search, Loader2, Info, CreditCard, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +31,8 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
   const [suggestions, setSuggestions] = useState<KeywordSuggestionOutput['suggestions'] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [rawN8nResponse, setRawN8nResponse] = useState<string | null>(null); // Keep for potential future debugging if needed, though not rendered
+  // rawN8nResponse is kept for debugging purposes, not rendered by default
+  const [rawN8nResponse, setRawN8nResponse] = useState<string | null>(null);
   const { toast } = useToast();
   const { user, deductCredits, loading: authLoading } = useAuth();
 
@@ -74,10 +75,11 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
       console.log("[KeywordSuggesterRunner] Received result from suggestKeywords:", result);
       
       if (result.rawResponse) {
-        setRawN8nResponse(result.rawResponse);
+        setRawN8nResponse(result.rawResponse); // Store raw response if available
       }
       
       if (result && typeof result.suggestions !== 'undefined') {
+         // Deduct credits only if suggestions are successfully processed
         await deductCredits(creditCost); 
       }
       
@@ -85,7 +87,7 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
         setSuggestions(result.suggestions);
         if (result.suggestions.length === 0) {
             toast({
-            title: "No Suggestions",
+            title: "No Suggestions Found",
             description: "The service couldn't find any specific suggestions for this topic. Try being more specific or broader.",
             variant: "default",
             });
@@ -96,6 +98,8 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
             });
         }
       } else {
+        // This case should ideally be handled by the flow returning suggestions: [] on error,
+        // but as a fallback:
         throw new Error("The keyword suggestion service did not return a valid 'suggestions' field.");
       }
     } catch (e) {
@@ -111,6 +115,21 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
       setIsLoading(false);
     }
   }
+
+  const handleCopyAllSuggestions = async () => {
+    if (!suggestions || suggestions.length === 0) {
+      toast({ title: "No suggestions to copy", variant: "default" });
+      return;
+    }
+    const keywordsString = suggestions.map(s => s.keyword).join(", ");
+    try {
+      await navigator.clipboard.writeText(keywordsString);
+      toast({ title: "Copied to clipboard!", description: `${suggestions.length} keywords copied.` });
+    } catch (err) {
+      console.error("Failed to copy keywords: ", err);
+      toast({ title: "Copy Failed", description: "Could not copy keywords to clipboard.", variant: "destructive" });
+    }
+  };
 
   return (
     <div className="space-y-6 mt-6">
@@ -174,8 +193,6 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
         </CardContent>
       </Card>
 
-      {/* Raw Service Response Card has been removed as per request */}
-
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -220,6 +237,12 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
               </Table>
             </ScrollArea>
           </CardContent>
+          <CardFooter className="flex justify-end pt-4">
+            <Button onClick={handleCopyAllSuggestions} variant="outline">
+              <Copy className="mr-2 h-4 w-4" />
+              Copy All Suggestions
+            </Button>
+          </CardFooter>
         </Card>
       )}
       {suggestions && suggestions.length === 0 && !isLoading && !error && (
