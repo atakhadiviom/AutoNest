@@ -2,7 +2,7 @@
 "use client";
 
 import type { FC} from "react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -13,10 +13,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Lightbulb, AlertCircle, Search, Loader2, Info, CreditCard } from "lucide-react";
+import { Lightbulb, AlertCircle, Search, Loader2, Info, CreditCard, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/auth-context"; // Import useAuth
 
 const formSchema = z.object({
@@ -27,11 +28,25 @@ interface KeywordSuggesterRunnerProps {
   creditCost?: number;
 }
 
+const getKeywordsFromRawResponse = (rawJson: string | null): string[] | null => {
+  if (!rawJson) return null;
+  try {
+    const parsed = JSON.parse(rawJson);
+    if (parsed && Array.isArray(parsed.Keywords)) {
+      return parsed.Keywords.filter((kw: any) => typeof kw === 'string');
+    }
+  } catch (e) {
+    // Not valid JSON or expected structure
+    return null;
+  }
+  return null;
+};
+
 export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ creditCost = 0 }) => {
   const [suggestions, setSuggestions] = useState<KeywordSuggestionOutput['suggestions'] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [rawN8nResponse, setRawN8nResponse] = useState<string | null>(null); // State for raw response
+  const [rawN8nResponse, setRawN8nResponse] = useState<string | null>(null);
   const { toast } = useToast();
   const { user, deductCredits, loading: authLoading } = useAuth();
 
@@ -43,6 +58,31 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
   });
 
   const hasEnoughCredits = user ? user.credits >= creditCost : false;
+
+  const keywordsFromRaw = useMemo(() => getKeywordsFromRawResponse(rawN8nResponse), [rawN8nResponse]);
+
+  const handleCopyKeywordsFromRaw = async () => {
+    if (!keywordsFromRaw || keywordsFromRaw.length === 0) {
+      toast({ title: "Nothing to Copy", description: "No keywords extracted from raw response to copy.", variant: "default" });
+      return;
+    }
+    const commaSeparatedKeywords = keywordsFromRaw.join(", ");
+    try {
+      await navigator.clipboard.writeText(commaSeparatedKeywords);
+      toast({
+        title: "Keywords Copied!",
+        description: `${keywordsFromRaw.length} keywords (from raw) copied to clipboard.`,
+      });
+    } catch (err) {
+      console.error("Failed to copy keywords from raw: ", err);
+      toast({
+        title: "Copy Failed",
+        description: "Could not copy keywords to clipboard. Please try again or copy manually.",
+        variant: "destructive",
+      });
+    }
+  };
+
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user || authLoading) {
@@ -63,7 +103,7 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
     setIsLoading(true);
     setError(null);
     setSuggestions(null);
-    setRawN8nResponse(null); // Reset raw response
+    setRawN8nResponse(null);
 
     const input: KeywordSuggestionInput = {
       topic: values.topic,
@@ -78,6 +118,7 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
       }
       
       if (result && typeof result.suggestions !== 'undefined') {
+         // Deduct credits only if suggestions (even empty) are successfully processed, implying the service call was made.
         await deductCredits(creditCost); 
       }
       
@@ -96,7 +137,8 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
             });
         }
       } else {
-        throw new Error("The keyword suggestion service did not return a valid response.");
+        // This case might be less likely if suggestKeywords always returns a suggestions array (even if empty) on success
+        throw new Error("The keyword suggestion service did not return a valid 'suggestions' field.");
       }
     } catch (e) {
       console.error("[KeywordSuggesterRunner] Error suggesting keywords:", e);
@@ -177,10 +219,31 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
       {rawN8nResponse && (
         <Card className="shadow-md border-border/50">
           <CardHeader>
-            <CardTitle className="text-lg">Raw n8n Webhook Response</CardTitle>
+            <CardTitle className="text-lg">Raw Service Response</CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[200px] rounded-md border bg-muted/10 p-2">
+            {keywordsFromRaw && keywordsFromRaw.length > 0 ? (
+              <div className="mb-4">
+                <h4 className="text-md font-semibold mb-2">Keywords Extracted from Raw Response:</h4>
+                <ScrollArea className="h-[150px] rounded-md border bg-muted/20 p-3 mb-3">
+                  <ul className="list-disc pl-5 space-y-1">
+                    {keywordsFromRaw.map((kw, idx) => <li key={idx} className="text-sm">{kw}</li>)}
+                  </ul>
+                </ScrollArea>
+                <Button
+                  onClick={handleCopyKeywordsFromRaw}
+                  size="sm"
+                  variant="outline"
+                >
+                  <Copy className="mr-2 h-4 w-4" /> Copy Extracted Keywords
+                </Button>
+                <Separator className="my-4" />
+                <p className="text-xs text-muted-foreground mb-1">Full Raw Response:</p>
+              </div>
+            ) : (
+                 <p className="text-sm text-muted-foreground mb-2">Could not extract a 'Keywords' list from the raw response, or it was empty.</p>
+            )}
+            <ScrollArea className="h-[100px] rounded-md border bg-muted/10 p-2">
               <pre className="text-xs whitespace-pre-wrap break-all">
                 <code>{rawN8nResponse}</code>
               </pre>
@@ -201,6 +264,7 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
         <Card className="shadow-md border-border/50">
           <CardHeader>
             <CardTitle className="text-xl">Generated Keyword Suggestions</CardTitle>
+            <CardDescription>These suggestions have been processed by the application.</CardDescription>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[400px] rounded-md">
@@ -234,13 +298,13 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
           </CardContent>
         </Card>
       )}
-      {suggestions && suggestions.length === 0 && !isLoading && (
+      {suggestions && suggestions.length === 0 && !isLoading && !error && (
         <Alert>
           <Info className="h-4 w-4" />
-          <AlertTitle>No Suggestions Found</AlertTitle>
+          <AlertTitle>No Processed Suggestions Found</AlertTitle>
           <AlertDescription>
-            The service could not generate specific keyword suggestions for the provided topic. 
-            Consider refining your topic or trying a broader search term.
+            The service was called, but no keyword suggestions were processed or returned in the expected format. 
+            Check the raw response above for details from the service.
           </AlertDescription>
         </Alert>
       )}

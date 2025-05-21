@@ -51,28 +51,36 @@ export async function suggestKeywords(input: KeywordSuggestionInput): Promise<Ke
     const data = JSON.parse(rawResponseText); // Parse after ensuring it's ok
     console.log("[Keyword Suggestion Flow] Data from n8n webhook:", JSON.stringify(data, null, 2));
 
-
     let rawSuggestions: any[] = [];
     if (Array.isArray(data)) {
-        rawSuggestions = data;
-    } else if (typeof data === 'object' && data !== null && Array.isArray(data.suggestions)) {
-        rawSuggestions = data.suggestions;
+        rawSuggestions = data; // Handles cases like: [{keyword: "kw1"}, "kw2"]
+    } else if (typeof data === 'object' && data !== null) {
+        if (Array.isArray(data.suggestions)) { // Handles { suggestions: [...] }
+            rawSuggestions = data.suggestions;
+        } else if (Array.isArray(data.Keywords)) { // Handles { Keywords: ["kw1", "kw2"] }
+            // Map string array to the expected object structure for unified processing
+            rawSuggestions = data.Keywords.map((kw: any) => ({ keyword: String(kw) }));
+        } else {
+            console.warn("[Keyword Suggestion Flow] Unexpected object data format from n8n webhook. Expected 'suggestions' or 'Keywords' array. Data:", data);
+            return { suggestions: [], rawResponse: rawResponseText };
+        }
     } else {
-        console.warn("[Keyword Suggestion Flow] Unexpected data format from n8n webhook. Expected an array or object with a 'suggestions' array. Data:", data);
+        console.warn("[Keyword Suggestion Flow] Unexpected data format from n8n webhook. Expected an array or an object. Data:", data);
         return { suggestions: [], rawResponse: rawResponseText };
     }
     
     const suggestions = rawSuggestions.map((item: any) => {
-      if (typeof item === 'string') {
+      if (typeof item === 'string') { // If item from rawSuggestions is just a string (e.g. from a direct array of strings if n8n changes)
         return {
           keyword: item,
           potentialUse: undefined, 
           relevanceScore: undefined, 
         };
       }
+      // If item is an object (e.g., from data.Keywords.map or if webhook sent full objects)
       return {
-        keyword: String(item.keyword || "Unknown keyword"),
-        potentialUse: item.potentialUse ? String(item.potentialUse) : undefined,
+        keyword: String(item.keyword || "Unknown keyword"), // Ensure keyword is a string
+        potentialUse: item.potentialUse ? String(item.potentialUse) : undefined, // Ensure potentialUse is a string if present
         relevanceScore: typeof item.relevanceScore === 'number' ? Math.min(1, Math.max(0, item.relevanceScore)) : undefined,
       };
     });
@@ -80,6 +88,7 @@ export async function suggestKeywords(input: KeywordSuggestionInput): Promise<Ke
     const validationResult = KeywordSuggestionOutputSchema.safeParse({ suggestions, rawResponse: rawResponseText });
     if (!validationResult.success) {
         console.error("[Keyword Suggestion Flow] Validation error for n8n output:", validationResult.error.flatten());
+        // Return empty suggestions but keep rawResponse for debugging
         return { suggestions: [], rawResponse: rawResponseText };
     }
     
@@ -89,10 +98,8 @@ export async function suggestKeywords(input: KeywordSuggestionInput): Promise<Ke
   } catch (error) {
     console.error("[Keyword Suggestion Flow] Error calling n8n keyword suggestion webhook:", error);
     if (error instanceof Error) {
-      // Ensure rawResponseText is included even on error if it was fetched
       return { suggestions: [], rawResponse: rawResponseText || `Error: ${error.message}` };
     }
-    // Ensure rawResponseText is included even on unknown error if it was fetched
     return { suggestions: [], rawResponse: rawResponseText || "An unknown error occurred." };
   }
 }
