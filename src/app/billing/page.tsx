@@ -22,8 +22,7 @@ import { Spinner, FullPageLoader } from "@/components/ui/loader";
 import { useToast } from "@/hooks/use-toast";
 
 // Ensure NEXT_PUBLIC_PAYPAL_CLIENT_ID is set in your .env.local or environment variables
-// For production, this should be your LIVE PayPal Client ID.
-const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID"; // LIVE Client ID
+const NEXT_PUBLIC_PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
 // The PayPal SECRET KEY is NOT used in this client-side implementation.
 // It is for server-to-server API calls only and must be kept secure on a backend.
 
@@ -46,6 +45,7 @@ function PayPalPaymentButtons({
 }) {
   const [{ isPending, isRejected, options: scriptOptionsFromReducer }, dispatch] = usePayPalScriptReducer();
   const { toast } = useToast();
+  const { user } = useAuth(); // Get user for passing UID to capture API
   const dollarAmount = (creditsToPurchase / CREDITS_PER_DOLLAR).toFixed(2);
 
   useEffect(() => {
@@ -67,7 +67,7 @@ function PayPalPaymentButtons({
     }
   }, [isRejected, onPaymentError, scriptOptionsFromReducer]);
 
-  const createOrder: PayPalButtonsComponentProps['createOrder'] = (_data, actions) => {
+  const createOrder: PayPalButtonsComponentProps['createOrder'] = async (_data, actions) => {
     console.log("[PayPalButtons] createOrder called. Amount:", dollarAmount, "USD for", creditsToPurchase, "credits.");
 
     if (creditsToPurchase <= 0) {
@@ -77,68 +77,55 @@ function PayPalPaymentButtons({
           description: errorMsg,
           variant: "destructive",
       });
-      console.error("[PayPalButtons] createOrder error:", errorMsg, "Credits:", creditsToPurchase);
+      console.error("[PayPalButtons] createOrder error (validation):", errorMsg, "Credits:", creditsToPurchase);
       onPaymentError(new Error(errorMsg)); // Notify parent
-      setPaymentProcessingParent(false); // Ensure parent processing state is reset
-      return Promise.reject(new Error(errorMsg)); // Important to reject for PayPalButtons' onError
+      setPaymentProcessingParent(false); 
+      return Promise.reject(new Error(errorMsg));
     }
 
     setPaymentProcessingParent(true);
     onPaymentError(null); // Clear previous errors
 
-    const purchaseUnits = [{
-      amount: {
-        value: dollarAmount,
-        currency_code: "USD"
-      },
-      description: `${creditsToPurchase} AutoNest Credits`
-    }];
+    try {
+      const response = await fetch("/api/paypal/create-order", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ dollarAmount: parseFloat(dollarAmount), creditsToPurchase }),
+      });
 
-    console.log("[PayPalButtons] createOrder: Constructing purchase_units:", JSON.stringify(purchaseUnits, null, 2));
-
-    // Logic to call backend to create order
-    return fetch("/api/paypal/create-order", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ dollarAmount: parseFloat(dollarAmount), creditsToPurchase }),
-    })
-    .then((response) => {
       if (!response.ok) {
-        return response.json().then(errData => {
-          console.error("[PayPalButtons] Error from /api/paypal/create-order:", errData);
-          throw new Error(errData.error || `Failed to create order on server. Status: ${response.status}`);
-        });
+        const errData = await response.json().catch(() => ({ error: `Server responded with ${response.status}, but failed to parse error JSON.`}));
+        console.error("[PayPalButtons] Error from /api/paypal/create-order:", errData);
+        throw new Error(errData.error || `Failed to create order on server. Status: ${response.status}`);
       }
-      return response.json();
-    })
-    .then((order) => {
+
+      const order = await response.json();
       if (order.id) {
-        console.log("[PayPalButtons] Order ID from server:", order.id);
+        console.log("[PayPalButtons] Order ID from server (/api/paypal/create-order):", order.id);
         return order.id;
       } else {
         console.error("[PayPalButtons] Server did not return an order ID:", order);
         throw new Error("Server did not return a valid order ID.");
       }
-    })
-    .catch(err => {
-      console.error("[PayPalButtons] Error in createOrder (fetching from /api/paypal/create-order or processing its response):", err);
-      onPaymentError(err); // Notify parent of error
+    } catch (err: any) {
+      console.error("[PayPalButtons] Error in createOrder (calling /api/paypal/create-order):", err);
+      onPaymentError(err); 
       setPaymentProcessingParent(false);
       throw err; // Re-throw to trigger PayPalButtons' onError
-    });
+    }
   };
   
   const onApprove: PayPalButtonsComponentProps['onApprove'] = async (data, actions) => {
     console.log("[PayPalButtons] onApprove called. Data from PayPal (contains orderID):", data);
     try {
-      // Call backend to capture payment
       const response = await fetch(`/api/paypal/capture-payment`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        // Send userUID for server-side credit update
         body: JSON.stringify({ orderID: data.orderID, creditsToPurchase, userUID: user?.uid }),
       });
 
@@ -146,41 +133,39 @@ function PayPalPaymentButtons({
 
       if (!response.ok) {
         console.error("[PayPalButtons] Error from /api/paypal/capture-payment:", captureData);
-        // Check for INSTRUMENT_DECLINED from server response if backend proxies this
-        if (captureData?.details?.issue === "INSTRUMENT_DECLINED" || (typeof captureData.error === 'string' && captureData.error.toUpperCase().includes("INSTRUMENT_DECLINED"))) {
+        // Check for INSTRUMENT_DECLINED from server response
+        if (captureData?.paypalError?.name === "INSTRUMENT_DECLINED" || (typeof captureData.error === 'string' && captureData.error.toUpperCase().includes("INSTRUMENT_DECLINED"))) {
             toast({
                 title: "Payment Method Declined",
-                description: "Your payment method was declined. Please try a different funding source.",
-                variant: "default",
+                description: "Your payment method was declined by PayPal. Please try a different funding source.",
+                variant: "default", // Use default, not destructive, as user can retry
             });
-            return actions.restart();
+            return actions.restart(); // Crucial: This allows the user to pick another funding source.
         }
         throw new Error(captureData.error || `Failed to capture payment on server. Status: ${response.status}`);
       }
       
-      console.log("PayPal Order Captured via server. Server Response:", JSON.stringify(captureData, null, 2));
-      // `captureData` should contain the transaction details from server
-      // e.g., captureData.paypalCaptureId, captureData.status
+      console.log("[PayPalButtons] PayPal Order Captured via server. Server Response:", JSON.stringify(captureData, null, 2));
       onPaymentSuccess(captureData); // Pass server's capture details to parent
     } catch (error: any) {
       console.error("[PayPalButtons] Error during onApprove (calling /api/paypal/capture-payment or processing its response):", error);
-      const errorMessage = typeof error.message === 'string' ? error.message.toUpperCase() : '';
       // Note: INSTRUMENT_DECLINED might be handled by the server now, but client-side restart can still be a fallback
+      const errorMessage = typeof error.message === 'string' ? error.message.toUpperCase() : '';
       if (actions && errorMessage.includes("INSTRUMENT_DECLINED")) {
-        console.warn("[PayPalButtons] INSTRUMENT_DECLINED reported during capture attempt. Attempting to restart payment on client.");
+        console.warn("[PayPalButtons] INSTRUMENT_DECLINED reported during capture attempt. Attempting to restart payment on client (server might have already handled).");
         toast({
             title: "Payment Method Declined",
             description: "Your payment method was declined. Please select a different funding source or try again.",
             variant: "default",
         });
-        if (actions.restart) return actions.restart();
+        if (actions.restart) return actions.restart(); // Allow PayPal SDK to handle restart
       }
-      onPaymentError(error);
+      onPaymentError(error); // Propagate other errors to parent for display
     }
     // setPaymentProcessingParent(false) is handled by onPaymentSuccess or onPaymentError in the parent
   };
 
-  const onError: PayPalButtonsComponentProps['onError'] = (err) => {
+  const onError: PayPalButtonsComponentProps['onError'] = (err: any) => {
     const errorMessage = typeof err === 'string' ? err : (err as Error)?.message || JSON.stringify(err);
     const lowerCaseErrorMessage = errorMessage.toLowerCase();
     console.error("[PayPal Buttons] onError triggered (This indicates an ERROR from PayPal before or during the payment flow). Raw error object:", err, "Error message:", errorMessage);
@@ -221,15 +206,14 @@ function PayPalPaymentButtons({
   if (creditsToPurchase <= 0) {
     return <p className="text-sm text-destructive text-center py-2">Enter a valid amount of credits to purchase to see payment options.</p>;
   }
-  const { user } = useAuth(); // Get user for passing UID
-
+  
   return (
     <PayPalButtons
       key={dollarAmount} // Re-render if amount changes
       style={{
-        shape: "pill", // Updated from sample
+        shape: "pill", 
         layout: "vertical",
-        color: "blue", // Updated from sample
+        color: "blue", 
         label: "paypal",
       }}
       createOrder={createOrder}
@@ -243,10 +227,10 @@ function PayPalPaymentButtons({
 
 
 export default function BillingPage() {
-  const { user, loading: authLoading, addCredits } = useAuth();
+  const { user, loading: authLoading, addCredits } = useAuth(); // addCredits for client-side update after server confirmation
   const { toast } = useToast();
 
-  console.log("[BillingPage] Attempting to use PAYPAL_CLIENT_ID:", PAYPAL_CLIENT_ID);
+  console.log("[BillingPage] Attempting to use NEXT_PUBLIC_PAYPAL_CLIENT_ID:", NEXT_PUBLIC_PAYPAL_CLIENT_ID);
 
   const [creditsToPurchase, setCreditsToPurchase] = useState<number>(100);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
@@ -262,7 +246,9 @@ export default function BillingPage() {
 
   const handlePaymentSuccess = (details: any) => {
     // `details` here is now the response from our `/api/paypal/capture-payment` route
-    addCredits(creditsToPurchase); // Assuming capture was successful on server and credits updated there or client updates based on server success
+    // The server is responsible for updating Firestore.
+    // We call addCredits here to update the AuthContext's local state for immediate UI feedback.
+    addCredits(creditsToPurchase);
     toast({
       title: "Purchase Successful!",
       description: `${creditsToPurchase} credits purchase processed. Transaction ID: ${details.paypalCaptureId || details.id || 'N/A'}`,
@@ -311,7 +297,7 @@ export default function BillingPage() {
     } else if (lowerCaseMessage.includes("invalid credit amount")){
       setPaymentError(message); 
     } else if (lowerCaseMessage.includes("payment method declined")) {
-      setPaymentError(message); // Toast already shown by onApprove's catch block or by server response
+      setPaymentError(message); // Toast might have been shown by onApprove's catch or by server
     } else {
       const genericErrorMsg = `Payment Error: ${message}`;
       setPaymentError(genericErrorMsg);
@@ -352,23 +338,20 @@ export default function BillingPage() {
 
   const displayedDollarValue = (user.credits / CREDITS_PER_DOLLAR).toFixed(2);
 
-  // Options for PayPalScriptProvider, aligning with latest sample
   const scriptProviderOptions = {
-    "client-id": PAYPAL_CLIENT_ID,
+    "client-id": NEXT_PUBLIC_PAYPAL_CLIENT_ID || "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID", // Ensure this comes from env
     currency: "USD",
-    "enable-funding": "card", // From user's latest HTML sample
-    "disable-funding": "venmo,paylater", // From user's latest HTML sample
-    "buyer-country": "US", // From user's latest HTML sample
-    components: "buttons", // From user's latest HTML sample
-    // "data-page-type": "product-details", // Keep if relevant
-    // "data-sdk-integration-source": "developer-studio", // Keep if relevant
+    "enable-funding": "card", 
+    "disable-funding": "venmo,paylater", 
+    "buyer-country": "US", 
+    components: "buttons", 
   };
   
-  console.log("[BillingPage] PAYPAL_CLIENT_ID for Provider:", PAYPAL_CLIENT_ID);
+  console.log("[BillingPage] NEXT_PUBLIC_PAYPAL_CLIENT_ID for Provider:", NEXT_PUBLIC_PAYPAL_CLIENT_ID);
   console.log("[BillingPage] scriptProviderOptions for Provider:", JSON.stringify(scriptProviderOptions, null, 2));
 
 
-  const isPaypalConfigured = PAYPAL_CLIENT_ID && PAYPAL_CLIENT_ID !== "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID";
+  const isPaypalConfigured = NEXT_PUBLIC_PAYPAL_CLIENT_ID && NEXT_PUBLIC_PAYPAL_CLIENT_ID !== "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID";
 
   return (
     <AppLayout>
@@ -402,7 +385,7 @@ export default function BillingPage() {
             <CardDescription>
               Securely add credits to your account using PayPal. ({CREDITS_PER_DOLLAR} Credits = $1.00 USD)
             </CardDescription>
-             {(!isPaypalConfigured) && (
+             {!isPaypalConfigured && (
                 <Alert variant="destructive" className="mt-2">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>PayPal Not Configured</AlertTitle>
@@ -522,6 +505,3 @@ export default function BillingPage() {
     </AppLayout>
   );
 }
-
-
-    

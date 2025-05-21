@@ -4,14 +4,15 @@ import paypal from '@paypal/checkout-server-sdk';
 
 // Helper function to configure PayPal client
 function getPayPalClient() {
-  const clientId = process.env.PAYPAL_CLIENT_ID;
+  const clientId = process.env.PAYPAL_CLIENT_ID; // Server-side, no NEXT_PUBLIC_
   const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
   const environment = process.env.PAYPAL_ENVIRONMENT === 'live'
     ? new paypal.core.LiveEnvironment(clientId!, clientSecret!)
     : new paypal.core.SandboxEnvironment(clientId!, clientSecret!);
   
   if (!clientId || !clientSecret) {
-    throw new Error('PayPal Client ID or Secret not configured in environment variables.');
+    console.error('[API Create Order] PayPal Client ID or Secret not configured in server environment variables.');
+    throw new Error('PayPal Client ID or Secret not configured.');
   }
   
   return new paypal.core.PayPalHttpClient(environment);
@@ -28,7 +29,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid creditsToPurchase specified.' }, { status: 400 });
     }
 
-
     const client = getPayPalClient();
     const request = new paypal.orders.OrdersCreateRequest();
     request.prefer("return=representation");
@@ -42,8 +42,14 @@ export async function POST(req: NextRequest) {
           },
           description: `${creditsToPurchase} AutoNest Credits`,
           // You could add more item details here if needed
+          // custom_id: can be used to pass internal identifiers
         },
       ],
+      // application_context: { // Optional: Can be used for branding, return URLs for server-side redirect flows
+      //   brand_name: 'AutoNest',
+      //   landing_page: 'LOGIN',
+      //   user_action: 'PAY_NOW',
+      // }
     });
 
     const response = await client.execute(request);
