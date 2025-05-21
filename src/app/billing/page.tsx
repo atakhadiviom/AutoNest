@@ -187,7 +187,7 @@ export default function BillingPage() {
         setPaymentError("Could not initialize PayPal buttons. Ensure SDK is loaded and configured correctly.");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPayPalSdkReady, creditsToPurchase, addCredits, toast, paymentProcessing]); // PAYPAL_CLIENT_ID removed as it's constant after init
+  }, [isPayPalSdkReady, creditsToPurchase, addCredits, toast, paymentProcessing]);
 
   // Effect to render PayPal button when SDK is ready or creditsToPurchase changes, and not processing
   useEffect(() => {
@@ -382,5 +382,7 @@ export default function BillingPage() {
     </AppLayout>
   );
 }
+
+    
 
     
