@@ -91,13 +91,20 @@ function PayPalPaymentButtons({
   };
   
   const onError: PayPalButtonsComponentProps['onError'] = (err) => {
-    console.error("[PayPalButtons] onError triggered. Raw error object:", err);
-    onPaymentError(err); // Pass the raw error object
+    console.error("[PayPalButtons] onError triggered (This indicates an ERROR from PayPal before or during the payment flow). Raw error object:", err);
+    // Check if the error message indicates a user cancellation by closing the window
+    const errorMessage = typeof err === 'string' ? err : (err as Error)?.message || JSON.stringify(err);
+    if (errorMessage.toLowerCase().includes("window closed") || errorMessage.toLowerCase().includes("popup closed")) {
+        console.log("[PayPal Buttons] onError: Detected PayPal window closed by user or popup interaction. Treating as cancellation.");
+        onPaymentCancel(); // Call the dedicated cancel handler
+    } else {
+        onPaymentError(err); // Pass the raw error object for other types of errors
+    }
     setPaymentProcessingParent(false);
   };
 
   const onCancel: PayPalButtonsComponentProps['onCancel'] = () => {
-    console.log("[PayPalButtons] onCancel triggered (user closed window or cancelled payment).");
+    console.log("[PayPal Buttons] onCancel triggered (user closed window or cancelled payment).");
     onPaymentCancel();
     setPaymentProcessingParent(false);
   };
@@ -123,7 +130,12 @@ function PayPalPaymentButtons({
   return (
     <PayPalButtons
       key={dollarAmount} // Force re-render if amount changes
-      style={{ layout: 'vertical', color: 'blue', shape: 'rect', label: 'paypal' }}
+      style={{ 
+        shape: "rect",
+        layout: "vertical",
+        color: "gold", // Changed from blue to gold
+        label: "paypal",
+      }}
       createOrder={createOrder}
       onApprove={onApprove}
       onError={onError}
@@ -228,7 +240,12 @@ export default function BillingPage() {
   const scriptProviderOptions = {
     "client-id": PAYPAL_CLIENT_ID,
     currency: "USD",
-    "disable-funding": "credit,card", // Keep disabling direct credit/card options if desired
+    "enable-funding": "venmo", // Added from sample
+    "disable-funding": "", // Changed from "credit,card" to empty string as per sample
+    "buyer-country": "US", // Added from sample
+    components: "buttons", // Added from sample
+    "data-page-type": "product-details", // Added from sample
+    "data-sdk-integration-source": "developer-studio", // Added from sample
   };
 
   return (
@@ -261,7 +278,7 @@ export default function BillingPage() {
             <CardDescription>
               Securely add credits to your account using PayPal Sandbox. ({CREDITS_PER_DOLLAR} Credits = $1.00 USD)
             </CardDescription>
-             {(!PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER_REPLACE_ME" /* Example placeholder */) && (
+             {(!PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER_REPLACE_ME" ) && (
                 <Alert variant="destructive" className="mt-2">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>PayPal Not Configured</AlertTitle>
@@ -381,5 +398,3 @@ export default function BillingPage() {
     </AppLayout>
   );
 }
-
-    
