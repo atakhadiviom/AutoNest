@@ -21,7 +21,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { Spinner, FullPageLoader } from "@/components/ui/loader";
 import { useToast } from "@/hooks/use-toast";
 
-const PAYPAL_CLIENT_ID = "AXphOTlKv9G2m2wdB1UUy5yLd9ld4NRW1bh40Zxq7h-O6Si1TehB5gYYmRtM5i2Y6MjzxZdwpQpG1vxX"; // LIVE Client ID
+const PAYPAL_CLIENT_ID = "AfxvMbf0Sdap_JVtGjI0rEe62y3zs4iGfFeTmKySR7VH-sO06IP7dO_fvIkkx3RRkjRBW52kfklQmVg3"; // LIVE Client ID
 const CREDITS_PER_DOLLAR = 100;
 
 function PayPalPaymentButtons({
@@ -333,7 +333,7 @@ export default function BillingPage() {
                 <DollarSign className="h-6 w-6 text-primary" />
                 <div>
                     <p className="text-xs text-muted-foreground">Current Balance</p>
-                    <p className="font-semibold text-2xl text-primary">${displayedDollarValue}</p>
+                    <p className="font-semibold text-2xl text-primary">{displayedDollarValue}</p>
                 </div>
             </div>
           </Card>
@@ -465,5 +465,3 @@ export default function BillingPage() {
     </AppLayout>
   );
 }
-
-    
