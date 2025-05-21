@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Autnest - Automate Your Workflows',
-  description: 'AI-powered workflow automation by Autnest',
+  title: 'AutoNest - Automate Your Workflows',
+  description: 'AI-powered workflow automation by AutoNest',
 };
 
 export default function RootLayout({

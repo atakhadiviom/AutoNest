@@ -85,11 +85,11 @@ export function AuthForm({ mode }: AuthFormProps) {
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex items-center justify-center text-primary">
             <Hexagon size={40} strokeWidth={1.5} />
-            <span className="ml-2 text-3xl font-bold text-foreground">Autnest</span>
+            <span className="ml-2 text-3xl font-bold text-foreground">AutoNest</span>
           </div>
           <CardTitle className="text-2xl">{mode === "login" ? "Welcome Back" : "Create an Account"}</CardTitle>
           <CardDescription>
-            {mode === "login" ? "Sign in to continue to Autnest." : "Enter your details to get started."}
+            {mode === "login" ? "Sign in to continue to AutoNest." : "Enter your details to get started."}
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -10,7 +10,7 @@ export default function Navbar() {
         <Link href="/dashboard" className="mr-6 flex items-center space-x-2">
           <Hexagon className="h-6 w-6 text-primary" strokeWidth={1.5}/>
           <span className="font-bold sm:inline-block text-xl">
-            Autnest
+            AutoNest
           </span>
         </Link>
         <MainNav className="hidden md:flex mx-6" />
