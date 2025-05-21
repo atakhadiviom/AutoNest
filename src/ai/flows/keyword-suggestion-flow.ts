@@ -12,8 +12,6 @@ import {z} from 'genkit'; // Zod is still used for schema validation
 
 const KeywordSuggestionInputSchema = z.object({
   topic: z.string().min(3, { message: "Topic must be at least 3 characters long."}).describe('The central topic or seed keyword for which suggestions are needed.'),
-  language: z.string().optional().describe('The language for the keywords (e.g., "en", "es"). Defaults to English if not provided. (Note: n8n webhook may not use this)'),
-  country: z.string().optional().describe('The target country for the keywords (e.g., "US", "GB"). Helps in generating region-specific suggestions. (Note: n8n webhook may not use this)'),
 });
 export type KeywordSuggestionInput = z.infer<typeof KeywordSuggestionInputSchema>;
 
@@ -95,3 +93,5 @@ export async function suggestKeywords(input: KeywordSuggestionInput): Promise<Ke
     throw new Error("An unknown error occurred while retrieving keyword suggestions.");
   }
 }
+
+    

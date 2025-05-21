@@ -21,8 +21,6 @@ import { useAuth } from "@/contexts/auth-context"; // Import useAuth
 
 const formSchema = z.object({
   topic: z.string().min(3, { message: "Topic must be at least 3 characters." }),
-  language: z.string().optional(),
-  country: z.string().optional(),
 });
 
 interface KeywordSuggesterRunnerProps {
@@ -40,8 +38,6 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
     resolver: zodResolver(formSchema),
     defaultValues: {
       topic: "",
-      language: "",
-      country: "",
     },
   });
 
@@ -69,8 +65,6 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
 
     const input: KeywordSuggestionInput = {
       topic: values.topic,
-      ...(values.language && { language: values.language }),
-      ...(values.country && { country: values.country }),
     };
 
     try {
@@ -121,7 +115,7 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
                 Run Keyword Suggestion Tool
               </CardTitle>
               <CardDescription>
-                Enter a topic, and optionally language (e.g., en, es) and country codes (e.g., US, GB), to get AI-powered keyword suggestions.
+                Enter a topic to get AI-powered keyword suggestions.
               </CardDescription>
             </div>
             <Badge variant="secondary" className="flex items-center whitespace-nowrap">
@@ -145,34 +139,6 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
                   </FormItem>
                 )}
               />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="language"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Language (Optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., en, es, fr" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="country"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Country Code (Optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., US, GB, CA" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
               <Button 
                 type="submit" 
                 disabled={isLoading || authLoading || !hasEnoughCredits} 
@@ -258,3 +224,5 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
     </div>
   );
 };
+
+    
