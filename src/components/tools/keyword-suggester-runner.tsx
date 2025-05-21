@@ -18,6 +18,10 @@ import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/auth-context";
+import { db } from "@/lib/firebase"; // Import db
+import { collection, addDoc, serverTimestamp } from "firebase/firestore"; // Import Firestore functions
+import type { WorkflowRunLog } from "@/lib/types"; // Import WorkflowRunLog type
+import type { Workflow } from "@/lib/types"; // Import Workflow type for workflowName
 
 const formSchema = z.object({
   topic: z.string().min(3, { message: "Topic must be at least 3 characters." }),
@@ -25,14 +29,14 @@ const formSchema = z.object({
 
 interface KeywordSuggesterRunnerProps {
   creditCost?: number;
+  workflowId: string; // Added workflowId
+  workflowName: string; // Added workflowName
 }
 
-export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ creditCost = 0 }) => {
+export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ creditCost = 0, workflowId, workflowName }) => {
   const [suggestions, setSuggestions] = useState<KeywordSuggestionOutput['suggestions'] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // rawN8nResponse is kept for debugging purposes, not rendered by default
-  const [rawN8nResponse, setRawN8nResponse] = useState<string | null>(null);
   const { toast } = useToast();
   const { user, deductCredits, loading: authLoading } = useAuth();
 
@@ -44,6 +48,39 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
   });
 
   const hasEnoughCredits = user ? user.credits >= creditCost : false;
+
+  const logRunToFirestore = async (
+    status: 'Completed' | 'Failed', 
+    inputTopic: string, 
+    outputSuggestions: KeywordSuggestionOutput['suggestions'] | null, 
+    errorMessage?: string
+  ) => {
+    if (!user) {
+      console.error("Cannot log run: user not available.");
+      return;
+    }
+    try {
+      const logEntry: Omit<WorkflowRunLog, 'id' | 'timestamp'> & { timestamp: any } = { // serverTimestamp is special
+        workflowId,
+        workflowName,
+        userId: user.uid,
+        userEmail: user.email,
+        timestamp: serverTimestamp(), // Use serverTimestamp for consistency
+        status,
+        inputDetails: { topic: inputTopic },
+        outputSummary: status === 'Completed' && outputSuggestions ? `${outputSuggestions.length} suggestions found` : undefined,
+        errorDetails: errorMessage,
+        creditCostAtRun: creditCost,
+      };
+      await addDoc(collection(db, "workflowRunLogs"), logEntry);
+      console.log("Workflow run logged to Firestore.");
+    } catch (e) {
+      console.error("Error logging workflow run to Firestore:", e);
+      // Optionally toast an error to the user if logging is critical,
+      // but usually, this failure shouldn't block the main functionality.
+    }
+  };
+
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user || authLoading) {
@@ -64,7 +101,6 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
     setIsLoading(true);
     setError(null);
     setSuggestions(null);
-    setRawN8nResponse(null);
 
     const input: KeywordSuggestionInput = {
       topic: values.topic,
@@ -74,17 +110,13 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
       const result = await suggestKeywords(input);
       console.log("[KeywordSuggesterRunner] Received result from suggestKeywords:", result);
       
-      if (result.rawResponse) {
-        setRawN8nResponse(result.rawResponse); // Store raw response if available
-      }
-      
       if (result && typeof result.suggestions !== 'undefined') {
-         // Deduct credits only if suggestions are successfully processed
         await deductCredits(creditCost); 
       }
       
       if (result.suggestions) {
         setSuggestions(result.suggestions);
+        await logRunToFirestore('Completed', values.topic, result.suggestions);
         if (result.suggestions.length === 0) {
             toast({
             title: "No Suggestions Found",
@@ -98,14 +130,13 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
             });
         }
       } else {
-        // This case should ideally be handled by the flow returning suggestions: [] on error,
-        // but as a fallback:
         throw new Error("The keyword suggestion service did not return a valid 'suggestions' field.");
       }
     } catch (e) {
       console.error("[KeywordSuggesterRunner] Error suggesting keywords:", e);
       const errorMessage = e instanceof Error ? e.message : "An unexpected error occurred.";
       setError(errorMessage);
+      await logRunToFirestore('Failed', values.topic, null, errorMessage);
       toast({
         title: "Suggestion Failed",
         description: errorMessage,

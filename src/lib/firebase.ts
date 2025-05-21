@@ -2,6 +2,7 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 import { getAuth, type Auth } from "firebase/auth";
+import { getFirestore, type Firestore } from "firebase/firestore"; // Added Firestore import
 
 // IMPORTANT: In a real application, use environment variables for Firebase config.
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -18,6 +19,7 @@ const firebaseConfig = {
 // Initialize Firebase
 const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth: Auth = getAuth(app);
+const db: Firestore = getFirestore(app); // Initialize Firestore
 let analytics: Analytics | undefined;
 
 if (typeof window !== 'undefined') {
@@ -30,4 +32,4 @@ if (typeof window !== 'undefined') {
   });
 }
 
-export { app, auth, analytics };
+export { app, auth, db, analytics }; // Export db

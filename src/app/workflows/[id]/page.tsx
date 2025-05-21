@@ -4,20 +4,23 @@
 import type { ComponentType, ReactNode} from 'react';
 import { useEffect, useState, lazy, Suspense } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link"; // Link might still be useful for other things if added later
 import { format, parseISO } from 'date-fns';
+import { db } from '@/lib/firebase';
+import { collection, query, where, orderBy, getDocs, Timestamp as FirestoreTimestamp } from 'firebase/firestore';
+import { useAuth } from '@/contexts/auth-context';
 
 import AppLayout from "@/components/layout/app-layout";
 import { mockWorkflows } from "@/lib/mock-data";
-import type { Workflow, WorkflowStep } from "@/lib/types";
+import type { Workflow, WorkflowStep, WorkflowRunLog } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Spinner, FullPageLoader } from "@/components/ui/loader"; // Added FullPageLoader
-import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2 } from "lucide-react";
+import { Spinner } from "@/components/ui/loader";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database } from "lucide-react";
 
 // Dynamically import runner components
 const runnerComponents: Record<string, ComponentType<any>> = {
@@ -27,22 +30,19 @@ const runnerComponents: Record<string, ComponentType<any>> = {
   // Add other runners here as needed
 };
 
-
 export default function WorkflowDetailsPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
+  const { user, loading: authLoading } = useAuth();
+
   const [workflow, setWorkflow] = useState<Workflow | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingWorkflow, setLoadingWorkflow] = useState(true);
   const [RunnerComponent, setRunnerComponent] = useState<ComponentType<any> | null>(null);
-
-
-  // Mock run history data
-  const mockRunHistory = [
-    { id: "run1", date: "2023-07-29T09:00:00Z", status: "Completed", initiatedBy: "user@example.com" },
-    { id: "run2", date: "2023-07-28T15:30:00Z", status: "Failed", initiatedBy: "system" },
-    { id: "run3", date: "2023-07-28T10:15:00Z", status: "Completed", initiatedBy: "user@example.com" },
-  ];
+  
+  const [runHistory, setRunHistory] = useState<WorkflowRunLog[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -54,10 +54,46 @@ export default function WorkflowDetailsPage() {
         setRunnerComponent(null);
       }
     }
-    setLoading(false);
+    setLoadingWorkflow(false);
   }, [id]);
 
-  if (loading) {
+  useEffect(() => {
+    if (!id || !user || authLoading) {
+      // If no ID, user not loaded, or auth is still loading, don't fetch yet or clear history
+      if (!user && !authLoading) setHistoryError("User not authenticated.");
+      setRunHistory([]); // Clear history if user logs out or workflow ID changes
+      return;
+    }
+
+    const fetchHistory = async () => {
+      setHistoryLoading(true);
+      setHistoryError(null);
+      try {
+        const q = query(
+          collection(db, "workflowRunLogs"),
+          where("workflowId", "==", id),
+          where("userId", "==", user.uid),
+          orderBy("timestamp", "desc")
+        );
+        const querySnapshot = await getDocs(q);
+        const history: WorkflowRunLog[] = [];
+        querySnapshot.forEach((doc) => {
+          history.push({ id: doc.id, ...doc.data() } as WorkflowRunLog);
+        });
+        setRunHistory(history);
+      } catch (err) {
+        console.error("Error fetching workflow history:", err);
+        setHistoryError("Failed to load run history. Please try again later.");
+      } finally {
+        setHistoryLoading(false);
+      }
+    };
+
+    fetchHistory();
+  }, [id, user, authLoading]);
+
+
+  if (loadingWorkflow || authLoading) {
     return <AppLayout><div className="flex justify-center items-center h-64"><Spinner size={36}/></div></AppLayout>;
   }
 
@@ -79,6 +115,12 @@ export default function WorkflowDetailsPage() {
   }
   
   const IconComponent = workflow.icon || Layers;
+
+  const formatFirestoreTimestamp = (timestamp: FirestoreTimestamp | Date): string => {
+    if (!timestamp) return "N/A";
+    const date = timestamp instanceof FirestoreTimestamp ? timestamp.toDate() : timestamp;
+    return format(date, "PPpp");
+  };
 
   return (
     <AppLayout>
@@ -142,7 +184,11 @@ export default function WorkflowDetailsPage() {
               {RunnerComponent && workflow.isTool ? (
                 <section id="runner-section" className="mt-4">
                   <Suspense fallback={<div className="flex justify-center items-center p-8"><Spinner size={32} /> Loading Tool...</div>}>
-                    <RunnerComponent creditCost={workflow.creditCost} />
+                    <RunnerComponent 
+                        creditCost={workflow.creditCost} 
+                        workflowId={workflow.id} 
+                        workflowName={workflow.name} 
+                    />
                   </Suspense>
                 </section>
               ) : (
@@ -181,7 +227,6 @@ export default function WorkflowDetailsPage() {
           </Card>
         </div>
         
-        {/* Activity & History section remains for all workflows, including tools */}
         <Card className="shadow-lg mt-8">
             <CardHeader>
                 <CardTitle className="text-xl flex items-center">
@@ -191,28 +236,40 @@ export default function WorkflowDetailsPage() {
                 <CardDescription>Recent executions and logs for this {workflow.isTool ? 'tool' : 'workflow'}.</CardDescription>
             </CardHeader>
             <CardContent>
-              {mockRunHistory.length > 0 ? (
+              {historyLoading ? (
+                <div className="flex justify-center items-center py-8"><Spinner size={32}/> Loading history...</div>
+              ) : historyError ? (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Error Loading History</AlertTitle>
+                  <AlertDescription>{historyError}</AlertDescription>
+                </Alert>
+              ) : runHistory.length > 0 ? (
                 <ScrollArea className="h-[300px]">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Run ID</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Initiated By</TableHead>
+                      <TableHead>Input</TableHead>
+                      <TableHead>Output/Error</TableHead>
+                      <TableHead className="text-right">Credits</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockRunHistory.map((run) => (
+                    {runHistory.map((run) => (
                       <TableRow key={run.id}>
-                        <TableCell className="font-medium">{run.id}</TableCell>
-                        <TableCell>{format(parseISO(run.date), "PPpp")}</TableCell>
+                        <TableCell className="text-xs">{formatFirestoreTimestamp(run.timestamp)}</TableCell>
                         <TableCell>
                           <Badge variant={run.status === "Completed" ? "default" : "destructive"}>
                             {run.status}
                           </Badge>
                         </TableCell>
-                        <TableCell>{run.initiatedBy}</TableCell>
+                        <TableCell className="text-xs">{run.inputDetails?.topic || '-'}</TableCell>
+                        <TableCell className="text-xs max-w-xs truncate">
+                          {run.status === 'Completed' ? run.outputSummary : run.errorDetails || '-'}
+                        </TableCell>
+                        <TableCell className="text-right text-xs">{run.creditCostAtRun}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -220,7 +277,7 @@ export default function WorkflowDetailsPage() {
                 </ScrollArea>
               ) : (
                 <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                  <History className="mx-auto h-12 w-12 text-muted-foreground mb-3" />
+                  <Database className="mx-auto h-12 w-12 text-muted-foreground mb-3" />
                   <p className="text-muted-foreground">No run history available for this {workflow.isTool ? 'tool' : 'workflow'} yet.</p>
                   <p className="text-sm text-muted-foreground">Executions will appear here once the {workflow.isTool ? 'tool' : 'workflow'} is run.</p>
                 </div>
@@ -231,4 +288,3 @@ export default function WorkflowDetailsPage() {
     </AppLayout>
   );
 }
-
