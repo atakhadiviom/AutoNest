@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import Link from "next/link";
+import { useRouter } from "next/navigation"; // Import useRouter
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -39,7 +40,8 @@ const signupSchema = formSchemaBase.extend({
 
 export function AuthForm({ mode }: AuthFormProps) {
   const { login, signup } = useAuth();
-  const { toast } = useToast(); // Keep for potential form-specific toasts if needed later
+  const { toast } = useToast(); 
+  const router = useRouter(); // Initialize useRouter
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -61,16 +63,23 @@ export function AuthForm({ mode }: AuthFormProps) {
       if (mode === "login") {
         await login(values.email, values.password);
       } else {
-        // Type assertion to access confirmPassword if needed, but signup only needs email/password
         const signupValues = values as z.infer<typeof signupSchema>;
         await signup(signupValues.email, signupValues.password);
       }
-      // Successful login/signup is now primarily handled by onAuthStateChanged in AuthContext
-      // and page navigations. Toasts for success/failure are in AuthContext methods.
-    } catch (error) {
-      // Errors are already toasted by AuthContext methods.
-      // This catch block ensures isLoading is set to false.
-      // console.error("AuthForm submission error:", error); // Optional: for debugging if needed
+    } catch (error: any) {
+      // Check if it's a login attempt and the specific error code
+      if (mode === "login" && error?.code === 'auth/invalid-credential') {
+        toast({
+          title: "Login Failed",
+          description: "Account not found or password incorrect. Redirecting to sign up...",
+          variant: "destructive",
+        });
+        router.push('/signup'); // Redirect to signup page
+      } else {
+        // For other errors, or signup errors, the toast from AuthContext is usually sufficient.
+        // AuthContext already toasts most errors. Logging here can be for additional debug.
+        console.error("AuthForm submission error:", error.message);
+      }
     } finally {
       setIsLoading(false);
     }
