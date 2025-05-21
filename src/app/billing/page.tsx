@@ -273,7 +273,7 @@ export default function BillingPage() {
                 <DollarSign className="h-6 w-6 text-primary" />
                 <div>
                     <p className="text-xs text-muted-foreground">Current Balance</p>
-                    <p className="font-semibold text-2xl text-primary">${displayedDollarValue}</p>
+                    <p className="font-semibold text-2xl text-primary">{displayedDollarValue}</p>
                 </div>
             </div>
           </Card>
