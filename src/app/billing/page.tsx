@@ -67,35 +67,23 @@ export default function BillingPage() {
 
     return () => {
       // Basic cleanup
-      // Consider removing the script if the component unmounts, though usually not strictly necessary for SDKs like this.
     };
   }, []);
 
 
-  const renderPayPalButton = useCallback(() => {
+  const renderPayPalButton = useCallback((buttonContainerElement: HTMLElement) => {
     console.log("[renderPayPalButton] Attempting to render. SDK Ready:", isPayPalSdkReady, "Processing:", paymentProcessing, "Credits:", creditsToPurchase);
 
+    // Guard clauses at the beginning of the function
     if (paymentProcessing || !isPayPalSdkReady || !window.paypal || creditsToPurchase <= 0 || !PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER") {
-      console.log("[renderPayPalButton] Conditions not met, skipping render.");
-      if (!isPayPalSdkReady) console.log("[renderPayPalButton] SDK not ready.");
-      if (paymentProcessing) console.log("[renderPayPalButton] Payment processing.");
-      if (!window.paypal) console.log("[renderPayPalButton] window.paypal not available.");
-      if (creditsToPurchase <= 0) console.log("[renderPayPalButton] Credits to purchase is not positive.");
-      if (!PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER") console.log("[renderPayPalButton] PayPal Client ID missing or placeholder.");
+      console.log("[renderPayPalButton] Conditions not met, skipping render. SDKReady:", isPayPalSdkReady, "Processing:", paymentProcessing, "CreditsToPurchase:", creditsToPurchase, "ClientID valid:", !!(PAYPAL_CLIENT_ID && PAYPAL_CLIENT_ID !== "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER"));
       return;
     }
     setPaymentError(null); 
 
-    const buttonContainer = document.getElementById("paypal-button-container");
-    if (buttonContainer) {
-      buttonContainer.innerHTML = ''; // Clear previous buttons
-      console.log("[renderPayPalButton] Container found, proceeding to render PayPal buttons.");
-    } else {
-        console.error("[renderPayPalButton] PayPal button container not found in DOM.");
-        // It's possible this function is called before the container is in the DOM if paymentProcessing state changes rapidly.
-        // We might want to retry or ensure this only runs when the container is definitively there.
-        return;
-    }
+    // Clear previous buttons from the passed container
+    buttonContainerElement.innerHTML = ''; 
+    console.log("[renderPayPalButton] Container provided, proceeding to render PayPal buttons.");
 
     try {
         window.paypal.Buttons({
@@ -189,7 +177,7 @@ export default function BillingPage() {
             shape:  'rect',
             label:  'paypal'
         }
-      }).render("#paypal-button-container").catch((renderError: any) => {
+      }).render(buttonContainerElement).catch((renderError: any) => { // Render to the passed element
         console.error("[renderPayPalButton] Error during PayPal Buttons .render():", renderError);
         setPaymentError("Failed to render PayPal buttons. This could be due to configuration or network issues.");
       });
@@ -199,21 +187,21 @@ export default function BillingPage() {
         setPaymentError("Could not initialize PayPal buttons. Ensure SDK is loaded and configured correctly.");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPayPalSdkReady, creditsToPurchase, addCredits, toast, PAYPAL_CLIENT_ID]);
+  }, [isPayPalSdkReady, creditsToPurchase, addCredits, toast, paymentProcessing]); // PAYPAL_CLIENT_ID removed as it's constant after init
 
   // Effect to render PayPal button when SDK is ready or creditsToPurchase changes, and not processing
   useEffect(() => {
-    // Only attempt to render if the conditions are met
     if (isPayPalSdkReady && !paymentProcessing && creditsToPurchase > 0 && PAYPAL_CLIENT_ID && PAYPAL_CLIENT_ID !== "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER") {
-      console.log("[useEffect for renderPayPalButton] Conditions met, calling renderPayPalButton. Key:", paypalButtonKey);
+      console.log("[useEffect for renderPayPalButton] Conditions met. Key:", paypalButtonKey);
       const container = document.getElementById("paypal-button-container");
-      if (container) { // Ensure container exists before calling render
-        renderPayPalButton();
+      if (container) {
+        console.log("[useEffect for renderPayPalButton] Container found, calling renderPayPalButton.");
+        renderPayPalButton(container); // Pass the container element
       } else {
         console.log("[useEffect for renderPayPalButton] Container not yet in DOM, will retry on next render if key changes or conditions update.");
       }
     } else {
-      console.log("[useEffect for renderPayPalButton] Conditions NOT met, skipping renderPayPalButton. SDKReady:", isPayPalSdkReady, "Processing:", paymentProcessing, "Key:", paypalButtonKey);
+      console.log("[useEffect for renderPayPalButton] Conditions NOT met, skipping renderPayPalButton. SDKReady:", isPayPalSdkReady, "Processing:", paymentProcessing, "Credits:", creditsToPurchase, "Key:", paypalButtonKey);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPayPalSdkReady, paymentProcessing, creditsToPurchase, paypalButtonKey, renderPayPalButton]);
@@ -226,7 +214,7 @@ export default function BillingPage() {
 
   // Refresh PayPal button if amount changes by updating the key
   const handleAmountBlur = () => {
-    if (!paymentProcessing) { // Only update key if not currently processing
+    if (!paymentProcessing) { 
         setPaypalButtonKey(Date.now());
         console.log("[handleAmountBlur] paypalButtonKey updated to force re-render.");
     }
@@ -327,10 +315,7 @@ export default function BillingPage() {
                   <p className="ml-2">Processing payment...</p>
                 </div>
               ) : (
-                // The key on this div ensures it re-mounts if paypalButtonKey changes, 
-                // which can help if PayPal's internal state gets stuck.
                 <div id="paypal-button-container" key={paypalButtonKey}>
-                  {/* PayPal button will be rendered here by the SDK if conditions in useEffect are met */}
                    {creditsToPurchase <= 0 && <p className="text-sm text-destructive text-center py-2">Enter a valid amount of credits.</p>}
                 </div>
               )
@@ -342,7 +327,7 @@ export default function BillingPage() {
                 </div>
               )
             )}
-             {!isPayPalSdkReady && paymentError && !PAYPAL_CLIENT_ID && ( // Only show reload if client ID itself is the problem AND SDK failed
+             {!isPayPalSdkReady && paymentError && (!PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER") && ( 
                 <Button onClick={() => window.location.reload()} variant="outline">
                     <RefreshCw className="mr-2 h-4 w-4"/> Try Reloading Page
                 </Button>
@@ -397,6 +382,5 @@ export default function BillingPage() {
     </AppLayout>
   );
 }
-
 
     
