@@ -5,6 +5,7 @@ import { UserNav } from "@/components/layout/user-nav";
 import { Button } from "@/components/ui/button";
 import { CreditCard, Hexagon } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context"; // Import useAuth
+import { ThemeToggleButton } from "@/components/theme-toggle-button";
 
 export default function Navbar() {
   const { user, loading } = useAuth(); // Get user and loading state
@@ -22,7 +23,7 @@ export default function Navbar() {
         </Link>
         <MainNav className="hidden md:flex mx-6" />
         <div className="flex flex-1 items-center justify-end space-x-2 sm:space-x-4">
-          {/* Add mobile nav trigger here if needed */}
+          <ThemeToggleButton />
           <Button variant="outline" size="sm" asChild>
             <Link href="/billing">
               <CreditCard className="mr-0 sm:mr-2 h-4 w-4" />

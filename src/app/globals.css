@@ -59,6 +59,19 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 231 48% 48%;
+    --chart-1: 12 76% 61%; /* Keeping chart colors same, adjust if needed */
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --sidebar-background: 222.2 84% 4.9%; 
+    --sidebar-foreground: 204 17% 95%;   
+    --sidebar-primary: 0 0% 98%;         
+    --sidebar-primary-foreground: 240 5.9% 10%; 
+    --sidebar-accent: 217.2 32.6% 17.5%; 
+    --sidebar-accent-foreground: 204 17% 95%;
+    --sidebar-border: 217.2 32.6% 17.5%;
+    --sidebar-ring: 231 48% 48%; 
   }
 }
  
