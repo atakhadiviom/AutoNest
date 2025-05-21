@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 interface User {
   uid: string;
   email: string | null;
+  credits: number; // Added credits field
 }
 
 interface AuthContextType {
@@ -25,9 +26,12 @@ interface AuthContextType {
   login: (email: string, password?: string) => Promise<void>;
   signup: (email: string, password?: string) => Promise<void>;
   logout: () => Promise<void>;
+  deductCredits: (amount: number) => Promise<void>; // Added deductCredits function
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const DEFAULT_CREDITS = 100; // Default credits for new users (for demo)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -38,7 +42,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
-        setUser({ uid: firebaseUser.uid, email: firebaseUser.email });
+        // In a real app, you'd fetch credits from your backend (e.g., Firestore)
+        // For this demo, we'll assign default credits or keep existing if user re-logs.
+        setUser(prevUser => ({ 
+          uid: firebaseUser.uid, 
+          email: firebaseUser.email,
+          credits: prevUser?.uid === firebaseUser.uid ? prevUser.credits : DEFAULT_CREDITS,
+        }));
       } else {
         setUser(null);
       }
@@ -60,8 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // onAuthStateChanged will handle setting the user.
-      // Navigation is handled by page-level useEffect hooks.
+      // onAuthStateChanged will handle setting the user and initial credits.
       toast({
         title: "Logged In",
         description: "Successfully logged in!",
@@ -75,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       throw error; 
     } finally {
-      // setLoading(false); // setLoading(false) is handled by onAuthStateChanged effect
+      // setLoading(false); // Handled by onAuthStateChanged
     }
   };
 
@@ -90,9 +99,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setLoading(true);
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      // onAuthStateChanged will handle setting the user.
-      // Navigation is handled by page-level useEffect hooks.
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      // onAuthStateChanged will set up the user object with default credits.
        toast({
         title: "Account Created",
         description: "Successfully signed up!",
@@ -106,16 +114,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       throw error;
     } finally {
-      // setLoading(false); // setLoading(false) is handled by onAuthStateChanged effect
+      // setLoading(false); // Handled by onAuthStateChanged
     }
   };
 
   const logout = async () => {
-    // setLoading(true); // Not strictly needed as onAuthStateChanged will update loading
     try {
       await signOut(auth);
-      // onAuthStateChanged will set user to null
-      router.push('/login'); // Explicitly navigate after sign out
+      router.push('/login'); 
       toast({
         title: "Logged Out",
         description: "Successfully logged out.",
@@ -128,11 +134,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         variant: "destructive",
       });
     } 
-    // finally { setLoading(false); } // setLoading(false) is handled by onAuthStateChanged
   };
 
+  const deductCredits = async (amount: number) => {
+    // IMPORTANT: This is a client-side simulation.
+    // In a real app, this MUST be a secure backend operation.
+    setUser(currentUser => {
+      if (!currentUser) {
+        toast({ title: "Error", description: "User not found.", variant: "destructive" });
+        return null;
+      }
+      if (currentUser.credits < amount) {
+        toast({ title: "Insufficient Credits", description: "Not enough credits to perform this action.", variant: "destructive" });
+        // throw new Error("Insufficient credits"); // Or handle more gracefully
+        return currentUser; // Don't change if not enough
+      }
+      const newCredits = currentUser.credits - amount;
+      toast({ title: "Credits Deducted", description: `${amount} credits used. Remaining: ${newCredits}`});
+      return { ...currentUser, credits: newCredits };
+    });
+  };
+
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout, deductCredits }}>
       {children}
     </AuthContext.Provider>
   );

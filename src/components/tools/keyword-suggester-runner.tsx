@@ -13,10 +13,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Lightbulb, AlertCircle, Search, Loader2, Info } from "lucide-react";
+import { Lightbulb, AlertCircle, Search, Loader2, Info, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/contexts/auth-context"; // Import useAuth
 
 const formSchema = z.object({
   topic: z.string().min(3, { message: "Topic must be at least 3 characters." }),
@@ -24,11 +25,16 @@ const formSchema = z.object({
   country: z.string().optional(),
 });
 
-export const KeywordSuggesterRunner: FC = () => {
+interface KeywordSuggesterRunnerProps {
+  creditCost?: number;
+}
+
+export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ creditCost = 0 }) => {
   const [suggestions, setSuggestions] = useState<KeywordSuggestionOutput['suggestions'] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const { user, deductCredits, loading: authLoading } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -39,7 +45,24 @@ export const KeywordSuggesterRunner: FC = () => {
     },
   });
 
+  const hasEnoughCredits = user ? user.credits >= creditCost : false;
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!user || authLoading) {
+      toast({ title: "Authentication Error", description: "User not available. Please try again.", variant: "destructive" });
+      return;
+    }
+
+    if (!hasEnoughCredits) {
+      toast({
+        title: "Insufficient Credits",
+        description: `You need ${creditCost} credits to run this tool, but you only have ${user.credits}. Please add more credits.`,
+        variant: "destructive",
+      });
+      setError(`Insufficient credits. You need ${creditCost}, you have ${user.credits}.`);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     setSuggestions(null);
@@ -52,6 +75,9 @@ export const KeywordSuggesterRunner: FC = () => {
 
     try {
       const result = await suggestKeywords(input);
+      // Successfully got suggestions, now deduct credits
+      await deductCredits(creditCost); 
+      
       if (result.suggestions) {
         setSuggestions(result.suggestions);
         if (result.suggestions.length === 0) {
@@ -63,7 +89,7 @@ export const KeywordSuggesterRunner: FC = () => {
         } else {
             toast({
             title: "Keywords Suggested!",
-            description: `Found ${result.suggestions.length} keyword ideas.`,
+            description: `Found ${result.suggestions.length} keyword ideas. ${creditCost} credits used.`,
             });
         }
       } else {
@@ -72,6 +98,7 @@ export const KeywordSuggesterRunner: FC = () => {
     } catch (e) {
       console.error("Error suggesting keywords:", e);
       const errorMessage = e instanceof Error ? e.message : "An unexpected error occurred.";
+      // Do not deduct credits if the API call failed before credit deduction call
       setError(errorMessage);
       toast({
         title: "Suggestion Failed",
@@ -87,13 +114,20 @@ export const KeywordSuggesterRunner: FC = () => {
     <div className="space-y-6 mt-6">
       <Card className="shadow-md border-border/50">
         <CardHeader>
-          <CardTitle className="text-xl flex items-center">
-            <Lightbulb className="mr-2 h-5 w-5 text-primary" />
-            Run Keyword Suggestion Tool
-          </CardTitle>
-          <CardDescription>
-            Enter a topic, and optionally language (e.g., en, es) and country codes (e.g., US, GB), to get AI-powered keyword suggestions.
-          </CardDescription>
+          <div className="flex justify-between items-start">
+            <div>
+              <CardTitle className="text-xl flex items-center">
+                <Lightbulb className="mr-2 h-5 w-5 text-primary" />
+                Run Keyword Suggestion Tool
+              </CardTitle>
+              <CardDescription>
+                Enter a topic, and optionally language (e.g., en, es) and country codes (e.g., US, GB), to get AI-powered keyword suggestions.
+              </CardDescription>
+            </div>
+            <Badge variant="secondary" className="flex items-center whitespace-nowrap">
+              <CreditCard className="mr-1.5 h-4 w-4" /> Cost: {creditCost} Credits
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -139,7 +173,11 @@ export const KeywordSuggesterRunner: FC = () => {
                   )}
                 />
               </div>
-              <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
+              <Button 
+                type="submit" 
+                disabled={isLoading || authLoading || !hasEnoughCredits} 
+                className="w-full sm:w-auto"
+              >
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -152,6 +190,11 @@ export const KeywordSuggesterRunner: FC = () => {
                   </>
                 )}
               </Button>
+              {!authLoading && !hasEnoughCredits && user && (
+                 <p className="text-sm text-destructive">
+                   Not enough credits. You need {creditCost}, but have {user.credits}.
+                 </p>
+              )}
             </form>
           </Form>
         </CardContent>

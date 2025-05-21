@@ -142,7 +142,7 @@ export default function WorkflowDetailsPage() {
               {RunnerComponent && workflow.isTool ? (
                 <section id="runner-section" className="mt-4">
                   <Suspense fallback={<div className="flex justify-center items-center p-8"><Spinner size={32} /> Loading Tool...</div>}>
-                    <RunnerComponent />
+                    <RunnerComponent creditCost={workflow.creditCost} />
                   </Suspense>
                 </section>
               ) : (
@@ -231,3 +231,4 @@ export default function WorkflowDetailsPage() {
     </AppLayout>
   );
 }
+
