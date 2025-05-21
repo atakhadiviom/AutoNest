@@ -29,13 +29,15 @@ function PayPalPaymentButtons({
   onPaymentSuccess, 
   onPaymentError,
   onPaymentCancel,
-  setPaymentProcessingParent 
+  setPaymentProcessingParent,
+  isParentProcessing // New prop
 }: { 
   creditsToPurchase: number, 
   onPaymentSuccess: (details: any) => void,
   onPaymentError: (err: any) => void,
   onPaymentCancel: () => void,
-  setPaymentProcessingParent: (isProcessing: boolean) => void
+  setPaymentProcessingParent: (isProcessing: boolean) => void,
+  isParentProcessing: boolean // New prop type
 }) {
   const [{ isPending, isRejected, options: scriptOptions }, dispatch] = usePayPalScriptReducer();
   const { toast } = useToast();
@@ -172,7 +174,7 @@ function PayPalPaymentButtons({
       onApprove={onApprove}
       onError={onError}
       onCancel={onCancel}
-      disabled={creditsToPurchase <=0 || isPending || paymentProcessing} // Disable if also parent is processing
+      disabled={creditsToPurchase <=0 || isPending || isParentProcessing} // Use isParentProcessing here
     />
   );
 }
@@ -308,7 +310,7 @@ export default function BillingPage() {
                 <DollarSign className="h-6 w-6 text-primary" />
                 <div>
                     <p className="text-xs text-muted-foreground">Current Balance</p>
-                    <p className="font-semibold text-2xl text-primary">${displayedDollarValue}</p>
+                    <p className="font-semibold text-2xl text-primary">{displayedDollarValue}</p>
                 </div>
             </div>
           </Card>
@@ -373,7 +375,8 @@ export default function BillingPage() {
                         onPaymentSuccess={handlePaymentSuccess}
                         onPaymentError={handlePaymentError}
                         onPaymentCancel={handlePaymentCancel}
-                        setPaymentProcessingParent={setPaymentProcessing} // Pass setter for child to control
+                        setPaymentProcessingParent={setPaymentProcessing} 
+                        isParentProcessing={paymentProcessing} // Pass the state here
                     />
                 </PayPalScriptProvider>
               )
@@ -440,5 +443,7 @@ export default function BillingPage() {
     </AppLayout>
   );
 }
+
+    
 
     
