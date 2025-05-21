@@ -346,7 +346,7 @@ export default function WorkflowDetailsPage() {
             <div className="space-y-4 py-4">
               <div>
                 <h3 className="font-semibold text-foreground mb-1">Run Information</h3>
-                <p className="text-sm"><span className="text-muted-foreground">Status:</span> <Badge variant={selectedHistoryLog.status === "Completed" ? "default" : "destructive"}>{selectedHistoryLog.status}</Badge></p>
+                <div className="text-sm"><span className="text-muted-foreground">Status:</span> <Badge variant={selectedHistoryLog.status === "Completed" ? "default" : "destructive"}>{selectedHistoryLog.status}</Badge></div>
                 <p className="text-sm"><span className="text-muted-foreground">Credits Used:</span> {selectedHistoryLog.creditCostAtRun}</p>
                 <p className="text-sm"><span className="text-muted-foreground">User:</span> {selectedHistoryLog.userEmail || 'N/A'}</p>
               </div>
@@ -445,3 +445,5 @@ export default function WorkflowDetailsPage() {
     </AppLayout>
   );
 }
+
+
