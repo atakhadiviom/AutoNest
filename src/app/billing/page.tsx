@@ -21,7 +21,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { Spinner, FullPageLoader } from "@/components/ui/loader";
 import { useToast } from "@/hooks/use-toast";
 
-const PAYPAL_CLIENT_ID = "AXphOTlKv9G2m2wdB1UUy5yLd9ld4NRW1bh40Zxq7h-O6Si1TehB5gYYmRtM5i2Y6MjzxZdwpQpG1vxX"; // LIVE Client ID (from new sample)
+const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID"; // LIVE Client ID
 const CREDITS_PER_DOLLAR = 100;
 
 function PayPalPaymentButtons({
@@ -177,9 +177,9 @@ function PayPalPaymentButtons({
     <PayPalButtons
       key={dollarAmount} 
       style={{
-        shape: "pill", // Updated from sample
+        shape: "pill",
         layout: "vertical",
-        color: "blue",   // Updated from sample
+        color: "blue",   
         label: "paypal",
       }}
       createOrder={createOrder}
@@ -300,13 +300,15 @@ export default function BillingPage() {
   const scriptProviderOptions = {
     "client-id": PAYPAL_CLIENT_ID,
     currency: "USD",
-    "enable-funding": "card", // Updated from sample
-    "disable-funding": "venmo,paylater", // Updated from sample
-    "buyer-country": "US", // From sample
-    components: "buttons", // From sample
-    "data-page-type": "product-details", // From sample
-    "data-sdk-integration-source": "developer-studio", // From sample
+    "enable-funding": "card", 
+    "disable-funding": "venmo,paylater", 
+    "buyer-country": "US", 
+    components: "buttons", 
+    "data-page-type": "product-details", 
+    "data-sdk-integration-source": "developer-studio", 
   };
+
+  const isPaypalConfigured = PAYPAL_CLIENT_ID && PAYPAL_CLIENT_ID !== "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID";
 
   return (
     <AppLayout>
@@ -338,12 +340,12 @@ export default function BillingPage() {
             <CardDescription>
               Securely add credits to your account using PayPal. ({CREDITS_PER_DOLLAR} Credits = $1.00 USD)
             </CardDescription>
-             {(!PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID.startsWith("YOUR_") ) && (
+             {(!isPaypalConfigured) && (
                 <Alert variant="destructive" className="mt-2">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>PayPal Not Configured</AlertTitle>
                     <AlertDescription>
-                    The PayPal Client ID is a placeholder or missing. This section will not function until a valid Client ID is provided.
+                    The PayPal Client ID is a placeholder or missing. Please set NEXT_PUBLIC_PAYPAL_CLIENT_ID in your environment variables. This section will not function until a valid Client ID is provided.
                     </AlertDescription>
                 </Alert>
             )}
@@ -359,7 +361,7 @@ export default function BillingPage() {
                   onChange={handleCreditAmountChange}
                   min="1"
                   className="text-lg p-3"
-                  disabled={paymentProcessing || !PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID.startsWith("YOUR_") }
+                  disabled={paymentProcessing || !isPaypalConfigured }
                 />
               </div>
               <div className="text-right sm:text-left">
@@ -378,7 +380,7 @@ export default function BillingPage() {
               </Alert>
             )}
 
-            {PAYPAL_CLIENT_ID && !PAYPAL_CLIENT_ID.startsWith("YOUR_") ? (
+            {isPaypalConfigured ? (
               paymentProcessing && !paymentError ? (
                 <div className="flex items-center justify-center p-4">
                   <Spinner size={32} />
@@ -401,11 +403,11 @@ export default function BillingPage() {
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>PayPal Configuration Issue</AlertTitle>
                 <AlertDescription>
-                  PayPal Client ID is missing or invalid. Please ensure it is correctly set up.
+                  PayPal Client ID is missing or invalid. Please set NEXT_PUBLIC_PAYPAL_CLIENT_ID in your environment variables.
                 </AlertDescription>
               </Alert>
             )}
-             {paymentError && PAYPAL_CLIENT_ID && !PAYPAL_CLIENT_ID.startsWith("YOUR_") && ( 
+             {paymentError && isPaypalConfigured && ( 
                 <Button onClick={() => { setPaymentError(null); setPaymentProcessing(false); }} variant="outline" className="mt-2">
                     <RefreshCw className="mr-2 h-4 w-4"/> Retry Payment
                 </Button>
