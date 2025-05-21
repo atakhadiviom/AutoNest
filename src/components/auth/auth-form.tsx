@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import Link from "next/link";
-import { useRouter } from "next/navigation"; // Import useRouter
+import { useRouter } from "next/navigation"; 
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -35,13 +35,13 @@ const signupSchema = formSchemaBase.extend({
   confirmPassword: z.string().min(6, { message: "Password must be at least 6 characters." }),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match.",
-  path: ["confirmPassword"], // path of error
+  path: ["confirmPassword"], 
 });
 
 export function AuthForm({ mode }: AuthFormProps) {
   const { login, signup } = useAuth();
   const { toast } = useToast(); 
-  const router = useRouter(); // Initialize useRouter
+  const router = useRouter(); 
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -61,25 +61,31 @@ export function AuthForm({ mode }: AuthFormProps) {
     setIsLoading(true);
     try {
       if (mode === "login") {
-        await login(values.email, values.password);
-      } else {
+        const loginResult = await login(values.email, values.password);
+        if (!loginResult.success && loginResult.error) {
+          if (loginResult.error.code === 'auth/invalid-credential') {
+            toast({
+              title: "Login Failed",
+              description: "Account not found or password incorrect. Redirecting to sign up...",
+              variant: "destructive",
+            });
+            router.push('/signup');
+          } else if (loginResult.error.code === 'auth/missing-password') {
+            // Toast already shown by AuthContext.login for this.
+          }
+          // For other login errors, AuthContext.login has already shown a toast.
+        }
+        // If loginResult.success is true, onAuthStateChanged handles navigation.
+      } else { // mode === 'signup'
         const signupValues = values as z.infer<typeof signupSchema>;
-        await signup(signupValues.email, signupValues.password);
+        await signup(signupValues.email, signupValues.password); // signup still throws for its errors
+        // If successful, onAuthStateChanged handles navigation.
       }
     } catch (error: any) {
-      // Check if it's a login attempt and the specific error code
-      if (mode === "login" && error?.code === 'auth/invalid-credential') {
-        toast({
-          title: "Login Failed",
-          description: "Account not found or password incorrect. Redirecting to sign up...",
-          variant: "destructive",
-        });
-        router.push('/signup'); // Redirect to signup page
-      } else {
-        // For other errors, or signup errors, the toast from AuthContext is usually sufficient.
-        // AuthContext already toasts most errors. Logging here can be for additional debug.
-        console.error("AuthForm submission error:", error.message);
-      }
+      // This catch block is now primarily for errors thrown by signup,
+      // or truly unexpected errors during the login flow if login itself (not Firebase) threw.
+      // Toasts for signup errors are handled by AuthContext.signup.
+      console.error("AuthForm submission error (likely from signup or unexpected):", error.message);
     } finally {
       setIsLoading(false);
     }

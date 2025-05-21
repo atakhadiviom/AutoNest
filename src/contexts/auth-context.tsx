@@ -24,7 +24,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password?: string) => Promise<void>;
+  login: (email: string, password?: string) => Promise<{ success: boolean; error?: any }>;
   signup: (email: string, password?: string) => Promise<void>;
   logout: () => Promise<void>;
   deductCredits: (amount: number) => Promise<void>;
@@ -91,16 +91,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe(); // Cleanup subscription on unmount
   }, [toast]);
 
-  const login = async (email: string, password?: string) => {
+  const login = async (email: string, password?: string): Promise<{ success: boolean; error?: any }> => {
     if (!password) {
+        const err = new Error("Password is required for Firebase login.");
         toast({
             title: "Login Error",
-            description: "Password is required for Firebase login.",
+            description: err.message,
             variant: "destructive",
           });
-        throw new Error("Password is required for Firebase login.");
+        setLoading(false); // Explicitly set loading false as we are not proceeding
+        return { success: false, error: { code: 'auth/missing-password', message: err.message } };
     }
-    setLoading(true); // Ensure loading is true during login attempt before onAuthStateChanged kicks in
+    setLoading(true); 
     try {
       await signInWithEmailAndPassword(auth, email, password);
       // onAuthStateChanged will handle fetching/setting user data from Firestore.
@@ -108,20 +110,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         title: "Logged In",
         description: "Successfully logged in!",
       });
+      // onAuthStateChanged will eventually set setLoading(false) after user state is fully resolved.
+      return { success: true };
     } catch (error: any) {
       console.error("Firebase login error: ", error);
       if (error.code === 'auth/invalid-credential') {
         console.warn("Login failed due to invalid credentials. Please ensure the email and password are correct and the user exists.");
+        // No toast here for 'auth/invalid-credential'; AuthForm will handle it.
+      } else {
+        // For other types of login errors, show a generic toast.
+        toast({
+          title: "Login Failed",
+          description: error.message || "Could not log in. Please check your credentials.",
+          variant: "destructive",
+        });
       }
-      toast({
-        title: "Login Failed",
-        description: error.message || "Could not log in. Please check your credentials.",
-        variant: "destructive",
-      });
-      setLoading(false); // Ensure loading is false on login failure
-      throw error; 
+      setLoading(false); // Error occurred, ensure loading is false.
+      return { success: false, error }; 
     }
-    // setLoading(false) is handled by onAuthStateChanged success path
   };
 
   const signup = async (email: string, password?: string) => {
@@ -133,20 +139,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
         throw new Error("Password is required for Firebase signup.");
     }
-    setLoading(true); // Ensure loading is true during signup
+    setLoading(true); 
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      // Create user document in Firestore
       const userDocRef = doc(db, "users", userCredential.user.uid);
       await setDoc(userDocRef, {
         email: userCredential.user.email,
         credits: DEFAULT_CREDITS,
       });
-      // onAuthStateChanged will then pick up this new user and set the state, including credits from Firestore.
       toast({
         title: "Account Created",
         description: "Successfully signed up! Default credits added.",
       });
+      // onAuthStateChanged will eventually set setLoading(false)
     } catch (error: any) {
       console.error("Firebase signup error: ", error);
       toast({
@@ -154,16 +159,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: error.message || "Could not create account. Please try again.",
         variant: "destructive",
       });
-      setLoading(false); // Ensure loading is false on signup failure
+      setLoading(false); 
       throw error;
     }
-     // setLoading(false) is handled by onAuthStateChanged success path
   };
 
   const logout = async () => {
     try {
       await signOut(auth);
-      setUser(null); // Explicitly set user to null
+      setUser(null); 
       router.push('/login'); 
       toast({
         title: "Logged Out",
@@ -180,10 +184,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const deductCredits = async (amount: number) => {
-    // CRITICAL SECURITY WARNING:
-    // Modifying credits directly from the client-side is insecure and prone to tampering.
-    // In a production application, this operation MUST be handled by a trusted backend environment
-    // (e.g., Firebase Cloud Functions) which validates the request and updates Firestore.
     if (!user) {
       toast({ title: "Error", description: "User not found for credit deduction.", variant: "destructive" });
       throw new Error("User not found");
@@ -195,31 +195,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const userDocRef = doc(db, "users", user.uid);
     try {
-      // Use Firestore's 'increment' to atomically update the credits.
-      // To decrement, provide a negative value.
       await updateDoc(userDocRef, {
         credits: increment(-amount) 
       });
       
-      // Update local state for immediate UI feedback
       const newCredits = user.credits - amount;
       setUser({ ...user, credits: newCredits });
-      toast({ title: "Credits Deducted", description: `${amount} credits used. Remaining: ${newCredits.toFixed(2)}`});
+      toast({ title: "Credits Deducted", description: `${amount} credits used. Remaining: ${(newCredits / 100).toFixed(2)}`});
     } catch (error) {
       console.error("Error deducting credits in Firestore:", error);
       toast({ title: "Credit Deduction Failed", description: "Could not update credits in the database.", variant: "destructive" });
-      throw error; // Re-throw to allow calling function to handle
+      throw error; 
     }
   };
 
   const addCredits = async (amount: number) => {
-    // CRITICAL SECURITY WARNING:
-    // Modifying credits directly from the client-side is insecure.
-    // In a production app, adding credits should be a result of a verified payment process
-    // and handled by a secure backend (e.g., Firebase Cloud Functions).
     if (!user) {
       toast({ title: "Error", description: "User not found for adding credits.", variant: "destructive" });
-      return; // Or throw new Error("User not found");
+      return; 
     }
     if (amount <= 0) {
         toast({ title: "Invalid Amount", description: "Credit amount must be positive.", variant: "destructive" });
@@ -232,10 +225,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         credits: increment(amount)
       });
 
-      // Update local state
       const newCredits = user.credits + amount;
       setUser({ ...user, credits: newCredits });
-      toast({ title: "Credits Added", description: `${amount} credits added. New balance: ${newCredits.toFixed(2)}`});
+      toast({ title: "Credits Added", description: `${amount} credits added. New balance: ${(newCredits / 100).toFixed(2)}`});
     } catch (error) {
       console.error("Error adding credits in Firestore:", error);
       toast({ title: "Adding Credits Failed", description: "Could not update credits in the database.", variant: "destructive" });
