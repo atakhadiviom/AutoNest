@@ -49,20 +49,23 @@ function PayPalPaymentButtons({
   }, [isRejected, onPaymentError, scriptOptions]);
 
   const createOrder: PayPalButtonsComponentProps['createOrder'] = (_data, actions) => {
-    console.log("[PayPalButtons] createOrder called. Attempting to create order for amount:", dollarAmount, "USD");
+    console.log("[PayPalButtons] createOrder called. Attempting to create order for amount:", dollarAmount, "USD for", creditsToPurchase, "credits.");
     
     if (creditsToPurchase <= 0) {
+      const errorMsg = "Invalid credit amount. Please enter a positive number of credits to purchase.";
       toast({
           title: "Invalid Amount",
-          description: "Please enter a valid amount of credits to purchase.",
+          description: errorMsg,
           variant: "destructive",
       });
-      console.error("[PayPalButtons] createOrder error: Invalid credit amount for PayPal order.", creditsToPurchase);
-      return Promise.reject(new Error("Invalid credit amount for PayPal order."));
+      console.error("[PayPalButtons] createOrder error:", errorMsg, "Credits:", creditsToPurchase);
+      setPaymentProcessingParent(false); 
+      onPaymentError(new Error(errorMsg)); // Notify parent about the specific error
+      return Promise.reject(new Error(errorMsg)); // Reject to trigger PayPalButtons onError
     }
 
     setPaymentProcessingParent(true); 
-    onPaymentError(null); 
+    onPaymentError(null); // Clear previous errors from parent
 
     const purchaseUnits = [{
       amount: {
@@ -78,11 +81,11 @@ function PayPalPaymentButtons({
       purchase_units: purchaseUnits
     }).then((orderID) => {
       console.log("[PayPalButtons] createOrder successful. Order ID:", orderID);
-      // The PayPalButtons component handles the orderID internally. 
-      // This .then block is primarily for logging success before returning the orderID.
       return orderID;
     }).catch(err => {
       console.error("[PayPalButtons] Error in actions.order.create():", err);
+      // This catch is for errors during the actions.order.create() call itself.
+      // The PayPalButtons component's onError prop handles errors reported by the SDK for other reasons.
       setPaymentProcessingParent(false); 
       onPaymentError(err); // Ensure parent is notified of the error
       throw err; // Re-throw to ensure PayPal SDK's internal error handling also picks it up if needed.
@@ -91,11 +94,12 @@ function PayPalPaymentButtons({
 
   const onApprove: PayPalButtonsComponentProps['onApprove'] = async (_data, actions) => {
     console.log("[PayPalButtons] onApprove called. Data from PayPal:", _data);
-    onPaymentError(null); 
+    onPaymentError(null); // Clear previous errors
     try {
       if (!actions.order) {
-        console.error("[PayPalButtons] PayPal actions.order is not available in onApprove. This can happen if the PayPal window was closed or an error occurred before full approval.");
-        throw new Error("PayPal actions.order is not available in onApprove. The payment might have been interrupted.");
+        const noOrderErrorMsg = "PayPal actions.order is not available in onApprove. The payment might have been interrupted.";
+        console.error("[PayPalButtons]", noOrderErrorMsg);
+        throw new Error(noOrderErrorMsg);
       }
       const orderDetails = await actions.order.capture();
       console.log("PayPal Order Captured (This is the SUCCESS RESPONSE from PayPal after payment):", JSON.stringify(orderDetails, null, 2));
@@ -111,12 +115,14 @@ function PayPalPaymentButtons({
   const onError: PayPalButtonsComponentProps['onError'] = (err) => {
     const errorMessage = typeof err === 'string' ? err : (err as Error)?.message || JSON.stringify(err);
     const lowerCaseErrorMessage = errorMessage.toLowerCase();
-    console.error("[PayPal Buttons] onError triggered (This indicates an ERROR from PayPal before or during the payment flow). Raw error object:", err);
-
+    console.error("[PayPal Buttons] onError triggered (This indicates an ERROR from PayPal before or during the payment flow). Raw error object:", err, "Error message:", errorMessage);
 
     if (lowerCaseErrorMessage.includes("window closed") || lowerCaseErrorMessage.includes("popup closed")) {
         console.log("[PayPal Buttons] onError: Detected PayPal window closed by user or popup interaction. Treating as cancellation.");
         onPaymentCancel(); 
+    } else if (lowerCaseErrorMessage.includes("can not open popup window - blocked") || lowerCaseErrorMessage.includes("popup was blocked")) {
+        console.error("[PayPal Buttons] onError: Detected popup blocker.");
+        onPaymentError(new Error("PayPal popup window was blocked by your browser. Please disable popup blockers for this site and try again."));
     } else {
         console.error("[PayPal Buttons] onError (unexpected PayPal button error):", err);
         onPaymentError(err); 
@@ -150,12 +156,12 @@ function PayPalPaymentButtons({
   }
 
   if (creditsToPurchase <= 0) {
-    return <p className="text-sm text-destructive text-center py-2">Enter a valid amount of credits to purchase.</p>;
+    return <p className="text-sm text-destructive text-center py-2">Enter a valid amount of credits to purchase to see payment options.</p>;
   }
 
   return (
     <PayPalButtons
-      key={dollarAmount} 
+      key={dollarAmount} // Force re-render if amount changes
       style={{ 
         shape: "rect",
         layout: "vertical",
@@ -166,7 +172,7 @@ function PayPalPaymentButtons({
       onApprove={onApprove}
       onError={onError}
       onCancel={onCancel}
-      disabled={creditsToPurchase <=0 || isPending}
+      disabled={creditsToPurchase <=0 || isPending || paymentProcessing} // Disable if also parent is processing
     />
   );
 }
@@ -177,7 +183,7 @@ export default function BillingPage() {
   const { toast } = useToast();
 
   const [creditsToPurchase, setCreditsToPurchase] = useState<number>(100);
-  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paymentProcessing, setPaymentProcessing] = useState(false); // Parent component processing state
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const dollarAmount = creditsToPurchase / CREDITS_PER_DOLLAR;
@@ -185,20 +191,23 @@ export default function BillingPage() {
   const handleCreditAmountChange = (e: ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value, 10);
     setCreditsToPurchase(isNaN(value) || value < 1 ? 1 : value);
-    setPaymentError(null); 
+    setPaymentError(null); // Clear error when amount changes
   };
 
   const handlePaymentSuccess = (details: any) => {
+    // Called by PayPalPaymentButtons on successful payment capture
     addCredits(creditsToPurchase);
     toast({
       title: "Purchase Successful!",
       description: `${creditsToPurchase} credits have been added. Transaction ID: ${details.id}`,
     });
-    setCreditsToPurchase(100); 
+    setCreditsToPurchase(100); // Reset to default
     setPaymentError(null);
+    // paymentProcessing is handled by PayPalPaymentButtons' finally block
   };
 
   const handlePaymentError = (err: any | null) => {
+    // Called by PayPalPaymentButtons on error
     if (err === null) { 
         setPaymentError(null);
         return;
@@ -215,33 +224,42 @@ export default function BillingPage() {
     
     const lowerCaseMessage = message.toLowerCase();
 
-    if (lowerCaseMessage.includes("can not open popup window - blocked") || lowerCaseMessage.includes("popup was blocked")) {
-      setPaymentError("PayPal popup window was blocked. Please check your browser settings and disable popup blockers for this site, then try again.");
+    if (lowerCaseMessage.includes("popup window was blocked") || lowerCaseMessage.includes("can not open popup window - blocked")) {
+      const popupBlockedMsg = "PayPal popup window was blocked. Please check your browser settings and disable popup blockers for this site, then try again.";
+      setPaymentError(popupBlockedMsg);
       toast({
         title: "Popup Blocked",
-        description: "PayPal popup window was blocked. Please disable popup blockers and try again.",
+        description: popupBlockedMsg,
         variant: "destructive",
       });
     } else if (lowerCaseMessage.includes("window closed") || lowerCaseMessage.includes("popup closed") || lowerCaseMessage.includes("order could not be captured")) {
         // This condition might be redundant if onCancel is robust, but it's a safeguard.
         handlePaymentCancel(); // Treat these also as cancellations if they reach here.
-    } else {
-      setPaymentError(`Payment Error: ${message}`);
+    } else if (lowerCaseMessage.includes("invalid credit amount")){
+      setPaymentError(message); // Message already good from createOrder
+      // Toast already shown by createOrder
+    }
+     else {
+      const genericErrorMsg = `Payment Error: ${message}`;
+      setPaymentError(genericErrorMsg);
       toast({
         title: "Payment Failed",
         description: `Could not process your payment. ${message}`,
         variant: "destructive",
       });
     }
+     // paymentProcessing is handled by PayPalPaymentButtons' finally/error blocks
   };
 
   const handlePaymentCancel = () => {
+    // Called by PayPalPaymentButtons on cancellation
     setPaymentError("Payment process was cancelled or the window was closed before completion.");
     toast({
         title: "Payment Cancelled",
         description: "The payment window was closed before completion or the process was cancelled.",
-        variant: "default",
+        variant: "default", // Changed to default for less aggressive styling for cancellation
     });
+    // paymentProcessing is handled by PayPalPaymentButtons' finally/cancel blocks
   };
 
 
@@ -259,17 +277,17 @@ export default function BillingPage() {
     );
   }
 
-  const displayedDollarValue = typeof user.credits === 'number' ? (user.credits / CREDITS_PER_DOLLAR).toFixed(2) : '0.00';
+  const displayedDollarValue = (user.credits / CREDITS_PER_DOLLAR).toFixed(2);
   
   const scriptProviderOptions = {
     "client-id": PAYPAL_CLIENT_ID,
     currency: "USD",
-    "enable-funding": "venmo",
-    "disable-funding": "", 
-    "buyer-country": "US", 
-    components: "buttons", 
-    "data-page-type": "product-details", 
-    "data-sdk-integration-source": "developer-studio", 
+    "enable-funding": "venmo", // As per user sample
+    "disable-funding": "", // As per user sample, not "credit,card"
+    "buyer-country": "US", // As per user sample
+    components: "buttons", // As per user sample
+    "data-page-type": "product-details", // As per user sample
+    "data-sdk-integration-source": "developer-studio", // As per user sample
   };
 
   return (
@@ -290,7 +308,7 @@ export default function BillingPage() {
                 <DollarSign className="h-6 w-6 text-primary" />
                 <div>
                     <p className="text-xs text-muted-foreground">Current Balance</p>
-                    <p className="font-semibold text-2xl text-primary">{displayedDollarValue}</p>
+                    <p className="font-semibold text-2xl text-primary">${displayedDollarValue}</p>
                 </div>
             </div>
           </Card>
@@ -302,7 +320,7 @@ export default function BillingPage() {
             <CardDescription>
               Securely add credits to your account using PayPal Sandbox. ({CREDITS_PER_DOLLAR} Credits = $1.00 USD)
             </CardDescription>
-             {(!PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER" || PAYPAL_CLIENT_ID.startsWith("YOUR_") ) && (
+             {(!PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID.startsWith("YOUR_") ) && (
                 <Alert variant="destructive" className="mt-2">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>PayPal Not Configured</AlertTitle>
@@ -323,7 +341,7 @@ export default function BillingPage() {
                   onChange={handleCreditAmountChange}
                   min="1"
                   className="text-lg p-3"
-                  disabled={paymentProcessing || !PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER" || PAYPAL_CLIENT_ID.startsWith("YOUR_") }
+                  disabled={paymentProcessing || !PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID.startsWith("YOUR_") }
                 />
               </div>
               <div className="text-right sm:text-left">
@@ -342,7 +360,7 @@ export default function BillingPage() {
               </Alert>
             )}
 
-            {PAYPAL_CLIENT_ID && PAYPAL_CLIENT_ID !== "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER" && !PAYPAL_CLIENT_ID.startsWith("YOUR_") ? (
+            {PAYPAL_CLIENT_ID && !PAYPAL_CLIENT_ID.startsWith("YOUR_") ? (
               paymentProcessing ? (
                 <div className="flex items-center justify-center p-4">
                   <Spinner size={32} />
@@ -355,7 +373,7 @@ export default function BillingPage() {
                         onPaymentSuccess={handlePaymentSuccess}
                         onPaymentError={handlePaymentError}
                         onPaymentCancel={handlePaymentCancel}
-                        setPaymentProcessingParent={setPaymentProcessing}
+                        setPaymentProcessingParent={setPaymentProcessing} // Pass setter for child to control
                     />
                 </PayPalScriptProvider>
               )
@@ -368,9 +386,9 @@ export default function BillingPage() {
                 </AlertDescription>
               </Alert>
             )}
-             {paymentError && PAYPAL_CLIENT_ID && PAYPAL_CLIENT_ID !== "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER" && !PAYPAL_CLIENT_ID.startsWith("YOUR_") && ( 
-                <Button onClick={() => { setPaymentError(null); window.location.reload(); }} variant="outline" className="mt-2">
-                    <RefreshCw className="mr-2 h-4 w-4"/> Try Reloading Page
+             {paymentError && PAYPAL_CLIENT_ID && !PAYPAL_CLIENT_ID.startsWith("YOUR_") && ( 
+                <Button onClick={() => { setPaymentError(null); setCreditsToPurchase(100); /* Consider if full reload is needed window.location.reload(); */ }} variant="outline" className="mt-2">
+                    <RefreshCw className="mr-2 h-4 w-4"/> Clear Error & Reset Amount
                 </Button>
             )}
 
@@ -422,3 +440,5 @@ export default function BillingPage() {
     </AppLayout>
   );
 }
+
+    
