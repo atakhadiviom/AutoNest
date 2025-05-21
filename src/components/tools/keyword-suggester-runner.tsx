@@ -31,6 +31,7 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
   const [suggestions, setSuggestions] = useState<KeywordSuggestionOutput['suggestions'] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rawN8nResponse, setRawN8nResponse] = useState<string | null>(null); // State for raw response
   const { toast } = useToast();
   const { user, deductCredits, loading: authLoading } = useAuth();
 
@@ -62,6 +63,7 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
     setIsLoading(true);
     setError(null);
     setSuggestions(null);
+    setRawN8nResponse(null); // Reset raw response
 
     const input: KeywordSuggestionInput = {
       topic: values.topic,
@@ -71,9 +73,11 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
       const result = await suggestKeywords(input);
       console.log("[KeywordSuggesterRunner] Received result from suggestKeywords:", result);
       
-      // Successfully got suggestions, now deduct credits
-      // Ensure deduction only happens if suggestions were positive or an empty list was intended
-      if (result && typeof result.suggestions !== 'undefined') { // Check if result and suggestions exist
+      if (result.rawResponse) {
+        setRawN8nResponse(result.rawResponse);
+      }
+      
+      if (result && typeof result.suggestions !== 'undefined') {
         await deductCredits(creditCost); 
       }
       
@@ -92,8 +96,6 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
             });
         }
       } else {
-        // This case implies suggestKeywords returned something unexpected (e.g. null or undefined result)
-        // which the current suggestKeywords implementation tries to avoid.
         throw new Error("The keyword suggestion service did not return a valid response.");
       }
     } catch (e) {
@@ -171,6 +173,21 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
           </Form>
         </CardContent>
       </Card>
+
+      {rawN8nResponse && (
+        <Card className="shadow-md border-border/50">
+          <CardHeader>
+            <CardTitle className="text-lg">Raw n8n Webhook Response</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[200px] rounded-md border bg-muted/10 p-2">
+              <pre className="text-xs whitespace-pre-wrap break-all">
+                <code>{rawN8nResponse}</code>
+              </pre>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
 
       {error && (
         <Alert variant="destructive">

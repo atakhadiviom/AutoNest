@@ -21,6 +21,7 @@ const KeywordSuggestionOutputSchema = z.object({
     potentialUse: z.string().describe("A brief explanation of why this keyword might be useful or in what context.").optional(),
     relevanceScore: z.number().min(0).max(1).optional().describe("An estimated relevance score from 0 (low) to 1 (high)."),
   })).describe('A list of keyword suggestions with potential uses and relevance scores.'),
+  rawResponse: z.string().optional().describe('The raw JSON response from the n8n webhook for debugging.'),
 });
 export type KeywordSuggestionOutput = z.infer<typeof KeywordSuggestionOutputSchema>;
 
@@ -30,6 +31,7 @@ export async function suggestKeywords(input: KeywordSuggestionInput): Promise<Ke
   const fullUrl = `${n8nWebhookBaseUrl}?q=${encodedTopic}`;
 
   console.log(`[Keyword Suggestion Flow] Requesting URL: ${fullUrl}`);
+  let rawResponseText = '';
 
   try {
     const response = await fetch(fullUrl, {
@@ -39,13 +41,14 @@ export async function suggestKeywords(input: KeywordSuggestionInput): Promise<Ke
       }
     });
 
+    rawResponseText = await response.text(); // Get raw text first
+
     if (!response.ok) {
-      const errorBody = await response.text();
-      console.error(`[Keyword Suggestion Flow] Error from n8n webhook: ${response.status} ${response.statusText}`, errorBody);
+      console.error(`[Keyword Suggestion Flow] Error from n8n webhook: ${response.status} ${response.statusText}`, rawResponseText);
       throw new Error(`Failed to fetch keyword suggestions from n8n webhook. Status: ${response.status}. Please check the n8n service.`);
     }
-
-    const data = await response.json();
+    
+    const data = JSON.parse(rawResponseText); // Parse after ensuring it's ok
     console.log("[Keyword Suggestion Flow] Data from n8n webhook:", JSON.stringify(data, null, 2));
 
 
@@ -56,18 +59,17 @@ export async function suggestKeywords(input: KeywordSuggestionInput): Promise<Ke
         rawSuggestions = data.suggestions;
     } else {
         console.warn("[Keyword Suggestion Flow] Unexpected data format from n8n webhook. Expected an array or object with a 'suggestions' array. Data:", data);
-        return { suggestions: [] };
+        return { suggestions: [], rawResponse: rawResponseText };
     }
     
     const suggestions = rawSuggestions.map((item: any) => {
       if (typeof item === 'string') {
         return {
-          keyword: item, // String item is already a string
+          keyword: item,
           potentialUse: undefined, 
           relevanceScore: undefined, 
         };
       }
-      // Ensure keyword and potentialUse are strings for schema validation
       return {
         keyword: String(item.keyword || "Unknown keyword"),
         potentialUse: item.potentialUse ? String(item.potentialUse) : undefined,
@@ -75,21 +77,22 @@ export async function suggestKeywords(input: KeywordSuggestionInput): Promise<Ke
       };
     });
     
-    const validationResult = KeywordSuggestionOutputSchema.safeParse({ suggestions });
+    const validationResult = KeywordSuggestionOutputSchema.safeParse({ suggestions, rawResponse: rawResponseText });
     if (!validationResult.success) {
         console.error("[Keyword Suggestion Flow] Validation error for n8n output:", validationResult.error.flatten());
-        // Return empty list if validation fails, but log the error for debugging.
-        return { suggestions: [] };
+        return { suggestions: [], rawResponse: rawResponseText };
     }
     
     console.log("[Keyword Suggestion Flow] Parsed suggestions count:", validationResult.data.suggestions.length);
-    return { suggestions: validationResult.data.suggestions };
+    return { suggestions: validationResult.data.suggestions, rawResponse: rawResponseText };
 
   } catch (error) {
     console.error("[Keyword Suggestion Flow] Error calling n8n keyword suggestion webhook:", error);
     if (error instanceof Error) {
-      throw new Error(`Could not retrieve keyword suggestions: ${error.message}`);
+      // Ensure rawResponseText is included even on error if it was fetched
+      return { suggestions: [], rawResponse: rawResponseText || `Error: ${error.message}` };
     }
-    throw new Error("An unknown error occurred while retrieving keyword suggestions.");
+    // Ensure rawResponseText is included even on unknown error if it was fetched
+    return { suggestions: [], rawResponse: rawResponseText || "An unknown error occurred." };
   }
 }
