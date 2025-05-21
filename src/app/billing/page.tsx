@@ -71,7 +71,8 @@ export default function BillingPage() {
 
 
   const renderPayPalButton = useCallback(() => {
-    if (!isPayPalSdkReady || !window.paypal || creditsToPurchase <= 0 || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER" || !PAYPAL_CLIENT_ID) {
+    // If payment is processing, or SDK not ready, or no valid client ID, or credits <=0, do not attempt to render.
+    if (paymentProcessing || !isPayPalSdkReady || !window.paypal || creditsToPurchase <= 0 || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER" || !PAYPAL_CLIENT_ID) {
       return;
     }
     setPaymentError(null); 
@@ -169,7 +170,7 @@ export default function BillingPage() {
     }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPayPalSdkReady, creditsToPurchase, addCredits, toast, PAYPAL_CLIENT_ID]);
+  }, [paymentProcessing, isPayPalSdkReady, creditsToPurchase, addCredits, toast, PAYPAL_CLIENT_ID]);
 
   // Effect to render PayPal button when SDK is ready or creditsToPurchase changes
   useEffect(() => {
