@@ -277,18 +277,8 @@ export const BlogFactoryRunner: FC<BlogFactoryRunnerProps> = ({ creditCost = 0, 
         </Card>
       )}
       
-      {blogPost?.rawResponse && (
-         <Card className="shadow-sm border-border/30 mt-4">
-          <CardHeader>
-            <CardTitle className="text-sm text-muted-foreground">Raw Service Response (for debugging)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[150px] bg-muted/20 p-2 rounded">
-              <pre className="text-xs whitespace-pre-wrap">{blogPost.rawResponse}</pre>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      )}
+      {/* Removed Raw Service Response Card */}
+
       {!blogPost && isLoading && (
         <div className="flex justify-center items-center py-10">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
