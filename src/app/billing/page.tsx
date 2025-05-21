@@ -144,7 +144,7 @@ export default function BillingPage() {
           const message = err.message ? String(err.message).toLowerCase() : "";
           
           if (message.includes("window closed") || message.includes("popup closed")) {
-            console.log("[PayPal Buttons] onError: Detected window closed/popup closed. Treating as cancellation.");
+            console.log("[PayPal Buttons] onError: Detected PayPal window closed by user or popup interaction. Treating as cancellation.");
             setPaymentError("Payment process was cancelled or the window was closed before completion.");
             toast({
               title: "Payment Cancelled",
