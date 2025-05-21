@@ -30,9 +30,10 @@ interface KeywordSuggesterRunnerProps {
   creditCost?: number;
   workflowId: string;
   workflowName: string;
+  onSuccessfulRun: () => void;
 }
 
-export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ creditCost = 0, workflowId, workflowName }) => {
+export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ creditCost = 0, workflowId, workflowName, onSuccessfulRun }) => {
   const [suggestions, setSuggestions] = useState<KeywordSuggestionOutput['suggestions'] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -112,12 +113,16 @@ export const KeywordSuggesterRunner: FC<KeywordSuggesterRunnerProps> = ({ credit
       console.log("[KeywordSuggesterRunner] Received result from suggestKeywords:", result);
       
       if (result && typeof result.suggestions !== 'undefined') {
-        await deductCredits(creditCost); 
+        await deductCredits(creditCost);
+        await logRunToFirestore('Completed', values.topic, result.suggestions);
+        onSuccessfulRun(); // Signal successful run
+      } else {
+        // Handle cases where suggestions might be undefined or null even if no error thrown by suggestKeywords
+        throw new Error("Received invalid or empty suggestions from the service.");
       }
       
       if (result.suggestions) {
         setSuggestions(result.suggestions);
-        await logRunToFirestore('Completed', values.topic, result.suggestions);
         if (result.suggestions.length === 0) {
             toast({
             title: "No Suggestions Found",

@@ -30,9 +30,10 @@ interface BlogFactoryRunnerProps {
   creditCost?: number;
   workflowId: string;
   workflowName: string;
+  onSuccessfulRun: () => void;
 }
 
-export const BlogFactoryRunner: FC<BlogFactoryRunnerProps> = ({ creditCost = 0, workflowId, workflowName }) => {
+export const BlogFactoryRunner: FC<BlogFactoryRunnerProps> = ({ creditCost = 0, workflowId, workflowName, onSuccessfulRun }) => {
   const [blogPost, setBlogPost] = useState<BlogFactoryOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,10 +110,13 @@ export const BlogFactoryRunner: FC<BlogFactoryRunnerProps> = ({ creditCost = 0, 
       
       if (result && result.title) { // Assuming title is a good indicator of success
         await deductCredits(creditCost);
+        await logRunToFirestore('Completed', values.researchQuery, result);
+        onSuccessfulRun(); // Signal successful run
+      } else {
+        throw new Error("Received invalid or empty blog post data from the service.");
       }
 
       setBlogPost(result);
-      await logRunToFirestore('Completed', values.researchQuery, result);
       toast({
         title: "Blog Post Generated!",
         description: `The blog post "${result.title.substring(0,50)}..." is ready. ${creditCost} credits used.`,
@@ -277,7 +281,6 @@ export const BlogFactoryRunner: FC<BlogFactoryRunnerProps> = ({ creditCost = 0, 
         </Card>
       )}
       
-      {/* Removed Raw Service Response Card */}
 
       {!blogPost && isLoading && (
         <div className="flex justify-center items-center py-10">

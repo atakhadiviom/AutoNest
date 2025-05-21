@@ -2,7 +2,7 @@
 "use client";
 
 import type { ComponentType, ReactNode} from 'react';
-import { useEffect, useState, lazy, Suspense } from "react";
+import { useEffect, useState, lazy, Suspense, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { format, parseISO } from 'date-fns';
 import { db } from '@/lib/firebase';
@@ -23,7 +23,7 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/loader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database, FileText, AlertCircleIcon, Newspaper } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database, FileText, AlertCircleIcon, Newspaper, UserRoundCheck } from "lucide-react";
 
 const runnerComponents: Record<string, ComponentType<any>> = {
   KeywordSuggesterRunner: lazy(() => 
@@ -62,6 +62,42 @@ export default function WorkflowDetailsPage() {
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
   const [selectedHistoryLog, setSelectedHistoryLog] = useState<WorkflowRunLog | null>(null);
 
+  const fetchHistory = useCallback(async () => {
+    if (!id || !user || authLoading) {
+      if (!user && !authLoading) setHistoryError("User not authenticated.");
+      setRunHistory([]);
+      return;
+    }
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const q = query(
+        collection(db, "workflowRunLogs"),
+        where("workflowId", "==", id),
+        where("userId", "==", user.uid),
+        orderBy("timestamp", "desc")
+      );
+      const querySnapshot = await getDocs(q);
+      const history: WorkflowRunLog[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        const timestamp = data.timestamp instanceof FirestoreTimestamp 
+                          ? data.timestamp 
+                          : (data.timestamp && data.timestamp.toDate) 
+                            ? data.timestamp.toDate() 
+                            : new Date(); 
+        history.push({ id: doc.id, ...data, timestamp } as WorkflowRunLog);
+      });
+      setRunHistory(history);
+    } catch (err) {
+      console.error("Error fetching workflow history:", err);
+      setHistoryError("Failed to load run history. Please try again later.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [id, user, authLoading]);
+
+
   useEffect(() => {
     if (id) {
       const foundWorkflow = mockWorkflows.find((wf) => wf.id === id);
@@ -76,50 +112,23 @@ export default function WorkflowDetailsPage() {
   }, [id]);
 
   useEffect(() => {
-    if (!id || !user || authLoading) {
-      if (!user && !authLoading) setHistoryError("User not authenticated.");
-      setRunHistory([]);
-      return;
-    }
-
-    const fetchHistory = async () => {
-      setHistoryLoading(true);
-      setHistoryError(null);
-      try {
-        const q = query(
-          collection(db, "workflowRunLogs"),
-          where("workflowId", "==", id),
-          where("userId", "==", user.uid),
-          orderBy("timestamp", "desc")
-        );
-        const querySnapshot = await getDocs(q);
-        const history: WorkflowRunLog[] = [];
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          // Ensure timestamp is correctly handled
-          const timestamp = data.timestamp instanceof FirestoreTimestamp 
-                            ? data.timestamp 
-                            : (data.timestamp && data.timestamp.toDate) 
-                              ? data.timestamp.toDate() // Handle cases where it might be a Firebase-like object but not instance
-                              : new Date(); // Fallback, though ideally serverTimestamp ensures correct type
-          history.push({ id: doc.id, ...data, timestamp } as WorkflowRunLog);
-        });
-        setRunHistory(history);
-      } catch (err) {
-        console.error("Error fetching workflow history:", err);
-        setHistoryError("Failed to load run history. Please try again later.");
-      } finally {
-        setHistoryLoading(false);
-      }
-    };
-
     fetchHistory();
-  }, [id, user, authLoading]);
+  }, [fetchHistory]);
 
   const handleHistoryCardClick = (log: WorkflowRunLog) => {
     setSelectedHistoryLog(log);
     setIsHistoryDialogOpen(true);
   };
+  
+  const handleSuccessfulRun = useCallback(() => {
+    setWorkflow(prev => prev ? ({ 
+      ...prev, 
+      usageCount: prev.usageCount + 1, 
+      lastRunDate: new Date().toISOString() 
+    }) : null);
+    fetchHistory(); // Re-fetch history to include the latest run
+  }, [fetchHistory]);
+
 
   if (loadingWorkflow || authLoading) {
     return <AppLayout><div className="flex justify-center items-center h-64"><Spinner size={36}/></div></AppLayout>;
@@ -197,7 +206,11 @@ export default function WorkflowDetailsPage() {
                   )}
                   <div className="flex items-center">
                     <Repeat className="h-4 w-4 mr-2 text-primary" />
-                    <span>Usage: {workflow.usageCount} times</span>
+                    <span>Total Usage: {workflow.usageCount} times</span>
+                  </div>
+                   <div className="flex items-center">
+                    <UserRoundCheck className="h-4 w-4 mr-2 text-primary" />
+                    <span>Your Usage: {runHistory.length} times</span>
                   </div>
                   {workflow.lastRunDate && (
                     <div className="flex items-center">
@@ -215,7 +228,8 @@ export default function WorkflowDetailsPage() {
                     <RunnerComponent 
                         creditCost={workflow.creditCost} 
                         workflowId={workflow.id} 
-                        workflowName={workflow.name} 
+                        workflowName={workflow.name}
+                        onSuccessfulRun={handleSuccessfulRun} 
                     />
                   </Suspense>
                 </section>
