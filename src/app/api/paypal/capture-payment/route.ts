@@ -51,26 +51,31 @@ export async function POST(req: NextRequest) {
       // In a production environment, you MUST use the Firebase Admin SDK initialized in your server environment
       // to update Firestore with elevated privileges, bypassing client-side security rules.
       
-      // --- Firebase Admin SDK (Preferred for Production) ---
-      // try {
-      //   const userDocRef = adminDb.collection('users').doc(userUID);
-      //   await userDocRef.update({
-      //     credits: FieldValue.increment(creditsToPurchase)
-      //   });
-      //   console.log(`[API Capture Payment] Successfully updated credits for user ${userUID} by ${creditsToPurchase} via Admin SDK.`);
-      // } catch (adminError) {
-      //   console.error(`[API Capture Payment] CRITICAL: Failed to update credits for user ${userUID} via Admin SDK after successful PayPal capture. Manual intervention required. Error:`, adminError);
-      //   // Potentially, you might want to refund the PayPal transaction if credit update fails critically.
-      //   // This is a complex part of production systems.
-      //   return NextResponse.json({ 
-      //       error: 'Payment captured but failed to update credits. Please contact support.', 
-      //       paypalCaptureId: capture.id 
-      //   }, { status: 500 });
-      // }
+      // --- Firebase Admin SDK (Preferred and Required for Production) ---
+      try {
+        const userDocRef = adminDb.collection('users').doc(userUID);
+        await userDocRef.update({
+          credits: FieldValue.increment(creditsToPurchase)
+        });
+        console.log(`[API Capture Payment] Successfully updated credits for user ${userUID} by ${creditsToPurchase} via Admin SDK.`);
+      } catch (adminError) {
+        console.error(`[API Capture Payment] CRITICAL: Failed to update credits for user ${userUID} via Admin SDK after successful PayPal capture. Manual intervention required. Error:`, adminError);
+        // Potentially, you might want to refund the PayPal transaction if credit update fails critically.
+        // This is a complex part of production systems.
+        // Example: Call the PayPal refund API here if needed.
+
+        return NextResponse.json({
+            error: 'Payment captured but failed to update credits. Please contact support.',
+            // Provide more details about the specific database error if needed, but be cautious not to expose sensitive information.
+            // adminError: adminError.message // Example: include error message
+            paypalCaptureId: capture.id 
+        }, { status: 500 });
+      }
       // --- End Firebase Admin SDK ---
       
       // If not using Admin SDK (e.g. still prototyping the API route with client SDK for Firestore):
       // This is NOT secure for production credit updates as it relies on client-side rules.
+      // The following commented-out code is for reference only and should NOT be used in production.
       // console.warn("[API Capture Payment] Attempting Firestore update with client SDK. THIS IS INSECURE FOR PRODUCTION CREDIT UPDATES.");
       // try {
       //    const { db } = await import('@/lib/firebase'); // Client SDK
@@ -90,9 +95,9 @@ export async function POST(req: NextRequest) {
       // This keeps the credit update logic in one place (AuthContext) for this prototype stage.
 
       return NextResponse.json({ 
-        message: 'Payment captured successfully by server.', 
+        message: 'Payment captured successfully and credits updated.',
         paypalCaptureId: capture.id,
-        status: capture.status 
+        status: capture.status
       });
 
     } else {
