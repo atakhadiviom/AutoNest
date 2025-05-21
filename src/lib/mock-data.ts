@@ -1,5 +1,5 @@
 import type { Workflow } from "@/lib/types";
-import { FileText, Mail, BarChart2, ShoppingCart, Users } from "lucide-react";
+import { FileText, Mail, BarChart2, ShoppingCart, Users, CreditCard } from "lucide-react";
 
 export const mockWorkflows: Workflow[] = [
   {
@@ -16,6 +16,7 @@ export const mockWorkflows: Workflow[] = [
       { id: "s3", description: "Grant access to platform features.", requiredInputs: ["customer_id", "feature_list"] },
       { id: "s4", description: "Follow-up after 7 days.", requiredInputs: ["customer_id"] },
     ],
+    creditCost: 5,
   },
   {
     id: "2",
@@ -32,6 +33,7 @@ export const mockWorkflows: Workflow[] = [
       { id: "s4", description: "Final approval from marketing head.", requiredInputs: ["draft_document_id"] },
       { id: "s5", description: "Schedule for publication.", requiredInputs: ["approved_document_id", "publication_date"] },
     ],
+    creditCost: 8,
   },
   {
     id: "3",
@@ -47,6 +49,7 @@ export const mockWorkflows: Workflow[] = [
       { id: "s3", description: "Invite to webinar (Day 7).", requiredInputs: ["lead_email", "webinar_topic"] },
       { id: "s4", description: "Follow-up call prompt for sales rep (Day 10).", requiredInputs: ["lead_id", "sales_rep_assignee"] },
     ],
+    creditCost: 10,
   },
   {
     id: "4",
@@ -63,6 +66,7 @@ export const mockWorkflows: Workflow[] = [
       { id: "s4", description: "Compile executive summary.", requiredInputs: ["p&l_data", "balance_sheet_data"] },
       { id: "s5", description: "Distribute report to stakeholders.", requiredInputs: ["final_report_pdf", "stakeholder_email_list"] },
     ],
+    creditCost: 15,
   },
    {
     id: "5",
@@ -79,5 +83,6 @@ export const mockWorkflows: Workflow[] = [
       { id: "s4", description: "Generate shipping label.", requiredInputs: ["customer_address", "package_dimensions", "package_weight"] },
       { id: "s5", description: "Dispatch package and notify customer.", requiredInputs: ["tracking_number", "customer_email"] },
     ],
+    creditCost: 7,
   },
 ];

@@ -1,3 +1,4 @@
+
 "use client";
 
 import AppLayout from "@/components/layout/app-layout";
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { AlertTriangle, ArrowLeft, CalendarDays, Edit3, Layers, ListChecks, UserCircle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarDays, Edit3, Layers, ListChecks, UserCircle, CreditCard } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -88,6 +89,12 @@ export default function WorkflowDetailsPage() {
                     <div className="flex items-center">
                       <UserCircle className="h-4 w-4 mr-2 text-primary" />
                       <span>Creator: {workflow.creatorEmail}</span>
+                    </div>
+                  )}
+                  {workflow.creditCost !== undefined && (
+                    <div className="flex items-center">
+                      <CreditCard className="h-4 w-4 mr-2 text-primary" />
+                      <span>Cost: {workflow.creditCost} credits</span>
                     </div>
                   )}
               </div>

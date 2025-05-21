@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -11,7 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, CalendarDays, Layers } from "lucide-react";
+import { ArrowRight, CalendarDays, Layers, CreditCard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format, parseISO } from 'date-fns';
 
@@ -27,7 +28,15 @@ export function WorkflowCard({ workflow }: WorkflowCardProps) {
       <CardHeader>
         <div className="flex items-start justify-between mb-2">
           <IconComponent className="h-10 w-10 text-primary mb-2" />
-          <Badge variant="outline">{workflow.steps.length} Steps</Badge>
+          <div className="flex flex-col items-end gap-1">
+            <Badge variant="outline">{workflow.steps.length} Steps</Badge>
+            {workflow.creditCost !== undefined && (
+              <Badge variant="secondary" className="flex items-center">
+                <CreditCard className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
+                {workflow.creditCost} Credits
+              </Badge>
+            )}
+          </div>
         </div>
         <CardTitle className="text-xl">{workflow.name}</CardTitle>
         <CardDescription className="text-sm line-clamp-3 h-[3.75rem]">{workflow.description}</CardDescription>

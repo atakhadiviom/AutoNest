@@ -12,6 +12,6 @@ export type Workflow = {
   updatedAt: string; 
   steps: WorkflowStep[];
   creatorEmail?: string; 
-  // Add any other properties needed for UI, e.g., icon
   icon?: React.ComponentType<{ className?: string }>;
+  creditCost?: number; // Added creditCost field
 };
