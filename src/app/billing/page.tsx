@@ -56,42 +56,43 @@ export default function BillingPage() {
     script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&currency=USD&disable-funding=credit,card`;
     script.onload = () => {
       setIsPayPalSdkReady(true);
-      console.log("PayPal SDK loaded.");
+      console.log("PayPal SDK loaded successfully.");
     };
     script.onerror = () => {
-      console.error("Failed to load PayPal SDK.");
-      setPaymentError("Failed to load PayPal SDK. Please check your internet connection or Client ID.");
+      console.error("Failed to load PayPal SDK. Check Client ID and network.");
+      setPaymentError("Failed to load PayPal SDK. Please check your internet connection or Client ID configuration.");
       setIsPayPalSdkReady(false);
     };
     document.body.appendChild(script);
 
     return () => {
-      // Basic cleanup
+      // Basic cleanup - consider removing the script if the component unmounts, though usually not critical
     };
   }, []);
 
 
   const renderPayPalButton = useCallback((buttonContainerElement: HTMLElement) => {
-    console.log("[renderPayPalButton] Attempting to render. SDK Ready:", isPayPalSdkReady, "Processing:", paymentProcessing, "Credits:", creditsToPurchase);
+    console.log("[renderPayPalButton] Attempting to render. SDK Ready:", isPayPalSdkReady, "Processing:", paymentProcessing, "Credits:", creditsToPurchase, "Valid Client ID:", !!(PAYPAL_CLIENT_ID && PAYPAL_CLIENT_ID !== "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER"));
 
-    // Guard clauses at the beginning of the function
     if (paymentProcessing || !isPayPalSdkReady || !window.paypal || creditsToPurchase <= 0 || !PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER") {
       console.log("[renderPayPalButton] Conditions not met, skipping render. SDKReady:", isPayPalSdkReady, "Processing:", paymentProcessing, "CreditsToPurchase:", creditsToPurchase, "ClientID valid:", !!(PAYPAL_CLIENT_ID && PAYPAL_CLIENT_ID !== "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER"));
+      if (creditsToPurchase <= 0 && document.getElementById("paypal-button-container")) { // only show this message if container exists
+         buttonContainerElement.innerHTML = '<p class="text-sm text-destructive text-center py-2">Enter a valid amount of credits to purchase.</p>';
+      }
       return;
     }
     setPaymentError(null); 
 
-    // Clear previous buttons from the passed container
     buttonContainerElement.innerHTML = ''; 
     console.log("[renderPayPalButton] Container provided, proceeding to render PayPal buttons.");
 
     try {
         window.paypal.Buttons({
         createOrder: (_data: any, actions: any) => {
-          console.log("[PayPal Buttons] createOrder called.");
+          console.log("[PayPal Buttons] createOrder called. Amount:", (creditsToPurchase / CREDITS_PER_DOLLAR).toFixed(2));
           if (creditsToPurchase <= 0) {
             setPaymentError("Please enter a valid amount of credits to purchase.");
-            return Promise.reject(new Error("Invalid credit amount"));
+            return Promise.reject(new Error("Invalid credit amount for PayPal order."));
           }
           return actions.order.create({
             purchase_units: [{
@@ -104,25 +105,25 @@ export default function BillingPage() {
           });
         },
         onApprove: async (_data: any, actions: any) => {
-          console.log("[PayPal Buttons] onApprove called.");
+          console.log("[PayPal Buttons] onApprove called. Data from PayPal:", _data);
           setPaymentProcessing(true);
           setPaymentError(null);
           try {
             const order = await actions.order.capture();
-            console.log("PayPal Order Captured:", order);
+            console.log("PayPal Order Captured (This is the SUCCESS RESPONSE from PayPal after payment):", JSON.stringify(order, null, 2));
             await addCredits(creditsToPurchase);
             toast({
               title: "Purchase Successful!",
               description: `${creditsToPurchase} credits have been added to your account. Transaction ID: ${order.id}`,
             });
-            setCreditsToPurchase(100); // Reset to default
-            setPaypalButtonKey(Date.now()); // Force re-render with a new key
+            setCreditsToPurchase(100); 
+            setPaypalButtonKey(Date.now()); 
           } catch (err: any) {
-            console.error("[PayPal Buttons] Error processing PayPal payment (onApprove):", err);
-            setPaymentError(`Payment failed: ${err.message || "Unknown error"}`);
+            console.error("[PayPal Buttons] Error during actions.order.capture() (This is an ERROR RESPONSE/STATE from PayPal after approval attempt):", err);
+            setPaymentError(`Payment failed during capture: ${err.message || "Unknown error during capture."}`);
             toast({
               title: "Payment Failed",
-              description: `Could not process your payment. ${err.message || "Please try again."}`,
+              description: `Could not process your payment after approval. ${err.message || "Please try again."}`,
               variant: "destructive",
             });
           } finally {
@@ -130,7 +131,7 @@ export default function BillingPage() {
           }
         },
         onCancel: () => {
-            console.log("[PayPal Buttons] onCancel triggered (user closed window or cancelled).");
+            console.log("[PayPal Buttons] onCancel triggered (user closed window or cancelled payment).");
             setPaymentError("Payment process was cancelled by user.");
             toast({
                 title: "Payment Cancelled",
@@ -140,7 +141,7 @@ export default function BillingPage() {
             setPaymentProcessing(false);
         },
         onError: (err: any) => {
-          console.error("[PayPal Buttons] onError triggered. Raw error:", err); 
+          console.error("[PayPal Buttons] onError triggered (This indicates an ERROR from PayPal before or during the payment flow). Raw error object:", err); 
           const message = err.message ? String(err.message).toLowerCase() : "";
           
           if (message.includes("window closed") || message.includes("popup closed")) {
@@ -152,8 +153,8 @@ export default function BillingPage() {
               variant: "default",
             });
           } else if (message.includes("can not open popup window - blocked")) {
-            console.error("[PayPal Buttons] onError: Popup window blocked.");
-            setPaymentError("PayPal popup window was blocked. Please check your browser settings and disable popup blockers for this site.");
+            console.error("[PayPal Buttons] onError: Popup window blocked by browser.");
+            setPaymentError("PayPal popup window was blocked. Please check your browser settings and disable popup blockers for this site, then try again.");
             toast({
               title: "Popup Blocked",
               description: "PayPal popup window was blocked. Please disable popup blockers and try again.",
@@ -162,10 +163,10 @@ export default function BillingPage() {
           }
           else {
             console.error("[PayPal Buttons] onError: Non-cancellation/non-popup-block error:", err.message || err);
-            setPaymentError(`PayPal Error: ${err.message || "An error occurred with PayPal."}`);
+            setPaymentError(`PayPal Error: ${err.message || "An unspecified error occurred with PayPal."}`);
             toast({
               title: "PayPal Error",
-              description: `An error occurred: ${err.message || "Please try again."}`,
+              description: `An error occurred with PayPal: ${err.message || "Please try again or contact support."}`,
               variant: "destructive",
             });
           }
@@ -177,31 +178,38 @@ export default function BillingPage() {
             shape:  'rect',
             label:  'paypal'
         }
-      }).render(buttonContainerElement).catch((renderError: any) => { // Render to the passed element
-        console.error("[renderPayPalButton] Error during PayPal Buttons .render():", renderError);
-        setPaymentError("Failed to render PayPal buttons. This could be due to configuration or network issues.");
+      }).render(buttonContainerElement).catch((renderError: any) => {
+        console.error("[renderPayPalButton] Error during PayPal Buttons .render() call:", renderError);
+        setPaymentError("Failed to render PayPal buttons. This could be due to configuration, network issues, or an issue with the PayPal SDK itself. Check console for details.");
       });
-      console.log("[renderPayPalButton] PayPal buttons .render() called.");
+      console.log("[renderPayPalButton] PayPal buttons .render() called on container:", buttonContainerElement);
     } catch (error) {
-        console.error("[renderPayPalButton] General error rendering PayPal buttons:", error);
-        setPaymentError("Could not initialize PayPal buttons. Ensure SDK is loaded and configured correctly.");
+        console.error("[renderPayPalButton] General error trying to set up PayPal buttons:", error);
+        setPaymentError("Could not initialize PayPal buttons. Ensure SDK is loaded and configured correctly, and check for browser console errors from PayPal.");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPayPalSdkReady, creditsToPurchase, addCredits, toast, paymentProcessing]);
+  }, [isPayPalSdkReady, creditsToPurchase, addCredits, toast, paymentProcessing]); // paymentProcessing added
 
-  // Effect to render PayPal button when SDK is ready or creditsToPurchase changes, and not processing
   useEffect(() => {
     if (isPayPalSdkReady && !paymentProcessing && creditsToPurchase > 0 && PAYPAL_CLIENT_ID && PAYPAL_CLIENT_ID !== "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER") {
-      console.log("[useEffect for renderPayPalButton] Conditions met. Key:", paypalButtonKey);
+      console.log("[useEffect for renderPayPalButton] Conditions met. Key:", paypalButtonKey, "Attempting to find container...");
       const container = document.getElementById("paypal-button-container");
       if (container) {
-        console.log("[useEffect for renderPayPalButton] Container found, calling renderPayPalButton.");
-        renderPayPalButton(container); // Pass the container element
+        console.log("[useEffect for renderPayPalButton] Container 'paypal-button-container' found, calling renderPayPalButton.");
+        renderPayPalButton(container);
       } else {
-        console.log("[useEffect for renderPayPalButton] Container not yet in DOM, will retry on next render if key changes or conditions update.");
+        console.warn("[useEffect for renderPayPalButton] Container 'paypal-button-container' NOT YET in DOM. PayPal buttons will not render yet. This can happen on initial load if amount is 0 or conditions change rapidly.");
       }
     } else {
-      console.log("[useEffect for renderPayPalButton] Conditions NOT met, skipping renderPayPalButton. SDKReady:", isPayPalSdkReady, "Processing:", paymentProcessing, "Credits:", creditsToPurchase, "Key:", paypalButtonKey);
+      console.log("[useEffect for renderPayPalButton] Conditions NOT met for rendering PayPal button. SDKReady:", isPayPalSdkReady, "Processing:", paymentProcessing, "Credits:", creditsToPurchase, "Key:", paypalButtonKey);
+       const container = document.getElementById("paypal-button-container");
+        if (container && creditsToPurchase <= 0) {
+             container.innerHTML = '<p class="text-sm text-destructive text-center py-2">Enter a valid amount of credits to purchase.</p>';
+        } else if (container && (!PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER")) {
+             // Error about client ID is handled by the main alert
+        } else if (container && !isPayPalSdkReady && PAYPAL_CLIENT_ID && PAYPAL_CLIENT_ID !== "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER") {
+            // SDK loading message is handled elsewhere
+        }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPayPalSdkReady, paymentProcessing, creditsToPurchase, paypalButtonKey, renderPayPalButton]);
@@ -209,14 +217,13 @@ export default function BillingPage() {
 
   const handleCreditAmountChange = (e: ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value, 10);
-    setCreditsToPurchase(isNaN(value) || value < 1 ? 1 : value); // Min 1 credit
+    setCreditsToPurchase(isNaN(value) || value < 1 ? 1 : value); 
   };
 
-  // Refresh PayPal button if amount changes by updating the key
   const handleAmountBlur = () => {
     if (!paymentProcessing) { 
+        console.log("[handleAmountBlur] Amount changed. Updating paypalButtonKey to force re-render PayPal button with new amount.");
         setPaypalButtonKey(Date.now());
-        console.log("[handleAmountBlur] paypalButtonKey updated to force re-render.");
     }
   };
 
@@ -289,7 +296,7 @@ export default function BillingPage() {
                   onBlur={handleAmountBlur} 
                   min="1"
                   className="text-lg p-3"
-                  disabled={paymentProcessing || !isPayPalSdkReady}
+                  disabled={paymentProcessing || !isPayPalSdkReady || !PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER"}
                 />
               </div>
               <div className="text-right sm:text-left">
@@ -303,7 +310,7 @@ export default function BillingPage() {
             {paymentError && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Error</AlertTitle>
+                <AlertTitle>Payment System Error</AlertTitle>
                 <AlertDescription>{paymentError}</AlertDescription>
               </Alert>
             )}
@@ -315,8 +322,10 @@ export default function BillingPage() {
                   <p className="ml-2">Processing payment...</p>
                 </div>
               ) : (
+                // This container MUST exist for PayPal buttons to render. 
+                // Its content is managed by renderPayPalButton or the useEffect that calls it.
                 <div id="paypal-button-container" key={paypalButtonKey}>
-                   {creditsToPurchase <= 0 && <p className="text-sm text-destructive text-center py-2">Enter a valid amount of credits.</p>}
+                   {/* Placeholder content for when buttons aren't rendered yet by PayPal script */}
                 </div>
               )
             ) : (
@@ -327,7 +336,7 @@ export default function BillingPage() {
                 </div>
               )
             )}
-             {!isPayPalSdkReady && paymentError && (!PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID === "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER") && ( 
+             {!isPayPalSdkReady && paymentError && PAYPAL_CLIENT_ID && PAYPAL_CLIENT_ID !== "YOUR_SANDBOX_CLIENT_ID_PLACEHOLDER" && ( 
                 <Button onClick={() => window.location.reload()} variant="outline">
                     <RefreshCw className="mr-2 h-4 w-4"/> Try Reloading Page
                 </Button>
@@ -342,7 +351,6 @@ export default function BillingPage() {
           </CardFooter>
         </Card>
 
-        {/* Existing Payment Methods and History Cards - can be expanded later */}
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="text-xl">Payment Methods</CardTitle>
@@ -382,3 +390,6 @@ export default function BillingPage() {
     </AppLayout>
   );
 }
+
+
+    
