@@ -21,7 +21,12 @@ import { useAuth } from "@/contexts/auth-context";
 import { Spinner, FullPageLoader } from "@/components/ui/loader";
 import { useToast } from "@/hooks/use-toast";
 
+// Ensure NEXT_PUBLIC_PAYPAL_CLIENT_ID is set in your .env.local or environment variables
+// For production, this should be your LIVE PayPal Client ID.
 const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID"; // LIVE Client ID
+// The PayPal SECRET KEY is NOT used in this client-side implementation.
+// It is for server-to-server API calls only and must be kept secure on a backend.
+
 const CREDITS_PER_DOLLAR = 100;
 
 function PayPalPaymentButtons({
@@ -79,7 +84,7 @@ function PayPalPaymentButtons({
     }
 
     setPaymentProcessingParent(true);
-    onPaymentError(null);
+    onPaymentError(null); // Clear previous errors
 
     const purchaseUnits = [{
       amount: {
@@ -101,7 +106,7 @@ function PayPalPaymentButtons({
       console.error("[PayPalButtons] Error in actions.order.create():", { error: err, creditsToPurchase, dollarAmount });
       onPaymentError(err);
       setPaymentProcessingParent(false);
-      throw err;
+      throw err; // Re-throw to trigger PayPalButtons' onError
     });
   };
 
@@ -130,6 +135,7 @@ function PayPalPaymentButtons({
       }
       onPaymentError(error);
     }
+    // setPaymentProcessingParent(false) is handled by onPaymentSuccess or onPaymentError in the parent
   };
 
   const onError: PayPalButtonsComponentProps['onError'] = (err) => {
@@ -166,6 +172,7 @@ function PayPalPaymentButtons({
   }
 
   if (isRejected) {
+    // Error display is handled by the parent BillingPage based on onPaymentError callback
     return null;
   }
 
@@ -175,7 +182,7 @@ function PayPalPaymentButtons({
 
   return (
     <PayPalButtons
-      key={dollarAmount}
+      key={dollarAmount} // Re-render if amount changes
       style={{
         shape: "pill",
         layout: "vertical",
@@ -207,7 +214,7 @@ export default function BillingPage() {
   const handleCreditAmountChange = (e: ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value, 10);
     setCreditsToPurchase(isNaN(value) || value < 1 ? 1 : value);
-    setPaymentError(null);
+    setPaymentError(null); // Clear error when amount changes
   };
 
   const handlePaymentSuccess = (details: any) => {
@@ -216,13 +223,13 @@ export default function BillingPage() {
       title: "Purchase Successful!",
       description: `${creditsToPurchase} credits have been added. Transaction ID: ${details.id}`,
     });
-    setCreditsToPurchase(100);
+    setCreditsToPurchase(100); // Reset to default or clear
     setPaymentError(null);
     setPaymentProcessing(false);
   };
 
   const handlePaymentError = (err: any | null) => {
-    if (err === null) {
+    if (err === null) { // Explicitly clear error if null is passed
         setPaymentError(null);
         return;
     }
@@ -238,8 +245,9 @@ export default function BillingPage() {
 
     const lowerCaseMessage = message.toLowerCase();
 
+    // Specific handling for PayPal SDK load failure
     if (message.startsWith("The PayPal payment system failed to load")) {
-      setPaymentError(message); // message already contains detailed info including Client ID check hint
+      setPaymentError(message); // message already contains detailed info
       toast({
         title: "PayPal Load Error",
         description: "Could not load PayPal services. Please see the message on the page for details.",
@@ -254,10 +262,12 @@ export default function BillingPage() {
         variant: "destructive",
       });
     } else if (lowerCaseMessage.includes("window closed") || lowerCaseMessage.includes("popup closed") || lowerCaseMessage.includes("order could not be captured")) {
+        // This case should be handled by onCancel, but as a fallback:
         handlePaymentCancel();
     } else if (lowerCaseMessage.includes("invalid credit amount")){
-      setPaymentError(message);
+      setPaymentError(message); // Toast already shown by createOrder
     } else if (lowerCaseMessage.includes("payment method was declined")) {
+      // Toast already shown by onApprove's catch block
       setPaymentError(message);
     } else {
       const genericErrorMsg = `Payment Error: ${message}`;
@@ -273,11 +283,11 @@ export default function BillingPage() {
 
   const handlePaymentCancel = () => {
     const cancelMsg = "Payment process was cancelled or the window was closed before completion.";
-    setPaymentError(cancelMsg);
+    setPaymentError(cancelMsg); // Display on page
     toast({
         title: "Payment Cancelled",
         description: "The payment window was closed before completion or the process was cancelled.",
-        variant: "default",
+        variant: "default", // Use default variant for cancellations
     });
     setPaymentProcessing(false);
   };
@@ -302,12 +312,12 @@ export default function BillingPage() {
   const scriptProviderOptions = {
     "client-id": PAYPAL_CLIENT_ID,
     currency: "USD",
-    "enable-funding": "card",
-    "disable-funding": "venmo,paylater",
-    "buyer-country": "US",
-    components: "buttons",
-    "data-page-type": "product-details",
-    "data-sdk-integration-source": "developer-studio",
+    "enable-funding": "card", // From new sample
+    "disable-funding": "venmo,paylater", // From new sample
+    "buyer-country": "US", // From new sample
+    components: "buttons", // From new sample
+    "data-page-type": "product-details", // From new sample
+    "data-sdk-integration-source": "developer-studio", // From new sample
   };
 
   const isPaypalConfigured = PAYPAL_CLIENT_ID && PAYPAL_CLIENT_ID !== "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID";
@@ -383,12 +393,12 @@ export default function BillingPage() {
             )}
 
             {isPaypalConfigured ? (
-              paymentProcessing && !paymentError ? (
+              paymentProcessing && !paymentError ? ( // Show spinner only if processing AND no error displayed
                 <div className="flex items-center justify-center p-4">
                   <Spinner size={32} />
                   <p className="ml-2">Processing payment...</p>
                 </div>
-              ) : !paymentError || (paymentError && creditsToPurchase > 0) ? (
+              ) : !paymentError || (paymentError && creditsToPurchase > 0) ? ( // Show buttons if no error, or if error exists but user might want to retry
                  <PayPalScriptProvider options={scriptProviderOptions}>
                     <PayPalPaymentButtons
                         creditsToPurchase={creditsToPurchase}
@@ -409,7 +419,7 @@ export default function BillingPage() {
                 </AlertDescription>
               </Alert>
             )}
-             {paymentError && isPaypalConfigured && (
+             {paymentError && isPaypalConfigured && ( // Show retry button if there's an error and PayPal is configured
                 <Button onClick={() => { setPaymentError(null); setPaymentProcessing(false); }} variant="outline" className="mt-2">
                     <RefreshCw className="mr-2 h-4 w-4"/> Retry Payment
                 </Button>
@@ -462,3 +472,5 @@ export default function BillingPage() {
     </AppLayout>
   );
 }
+
+
