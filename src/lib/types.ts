@@ -1,3 +1,4 @@
+
 export type WorkflowStep = {
   id: string;
   description: string;
@@ -14,7 +15,9 @@ export type Workflow = {
   creatorEmail?: string; 
   icon?: React.ComponentType<{ className?: string }>;
   creditCost?: number;
-  usageCount: number; // Added usageCount
-  lastRunDate?: string; // Added optional lastRunDate
+  usageCount: number;
+  lastRunDate?: string;
+  isTool?: boolean; // Identifies if this workflow is a runnable tool
+  runComponent?: string; // Specifies the React component to render for running the tool
 };
 

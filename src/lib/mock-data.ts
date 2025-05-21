@@ -1,5 +1,6 @@
+
 import type { Workflow } from "@/lib/types";
-import { FileText, Mail, BarChart2, ShoppingCart, Users, CreditCard, Repeat, History } from "lucide-react";
+import { FileText, Mail, BarChart2, ShoppingCart, Users, Lightbulb, Search } from "lucide-react"; // Added Lightbulb, Search
 
 export const mockWorkflows: Workflow[] = [
   {
@@ -19,6 +20,7 @@ export const mockWorkflows: Workflow[] = [
     creditCost: 5,
     usageCount: 125,
     lastRunDate: "2023-07-28T10:15:00Z",
+    isTool: false,
   },
   {
     id: "2",
@@ -38,6 +40,7 @@ export const mockWorkflows: Workflow[] = [
     creditCost: 8,
     usageCount: 78,
     lastRunDate: "2023-07-25T16:45:00Z",
+    isTool: false,
   },
   {
     id: "3",
@@ -56,6 +59,7 @@ export const mockWorkflows: Workflow[] = [
     creditCost: 10,
     usageCount: 210,
     lastRunDate: "2023-07-29T09:00:00Z",
+    isTool: false,
   },
   {
     id: "4",
@@ -75,6 +79,7 @@ export const mockWorkflows: Workflow[] = [
     creditCost: 15,
     usageCount: 5,
     lastRunDate: "2023-07-01T12:00:00Z",
+    isTool: false,
   },
    {
     id: "5",
@@ -94,5 +99,25 @@ export const mockWorkflows: Workflow[] = [
     creditCost: 7,
     usageCount: 350,
     lastRunDate: "2023-09-05T18:00:00Z",
+    isTool: false,
+  },
+  {
+    id: "keyword-suggestion-tool",
+    name: "AI Keyword Suggestion Tool",
+    description: "Generates relevant keyword ideas for your topic using AI. Helps with SEO and content strategy.",
+    createdAt: "2023-10-01T09:00:00Z",
+    updatedAt: "2023-10-01T09:00:00Z",
+    creatorEmail: "system@autonest.com",
+    icon: Lightbulb, 
+    steps: [
+      { id: "kst1", description: "Enter your primary topic or seed keyword.", requiredInputs: ["topic"] },
+      { id: "kst2", description: "Optionally specify language and target country for more precise results.", requiredInputs: ["language (optional)", "country (optional)"] },
+      { id: "kst3", description: "The AI analyzes your input and generates a list of keyword suggestions.", requiredInputs: [] },
+      { id: "kst4", description: "Review the suggestions, which may include potential use cases and relevance scores.", requiredInputs: [] },
+    ],
+    creditCost: 2, 
+    usageCount: 0, 
+    isTool: true,
+    runComponent: "KeywordSuggesterRunner",
   },
 ];

@@ -1,0 +1,217 @@
+
+"use client";
+
+import type { FC} from "react";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { suggestKeywords, type KeywordSuggestionInput, type KeywordSuggestionOutput } from "@/ai/flows/keyword-suggestion-flow";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Lightbulb, AlertCircle, Search, Loader2, Info } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+
+const formSchema = z.object({
+  topic: z.string().min(3, { message: "Topic must be at least 3 characters." }),
+  language: z.string().optional(),
+  country: z.string().optional(),
+});
+
+export const KeywordSuggesterRunner: FC = () => {
+  const [suggestions, setSuggestions] = useState<KeywordSuggestionOutput['suggestions'] | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      topic: "",
+      language: "",
+      country: "",
+    },
+  });
+
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    setIsLoading(true);
+    setError(null);
+    setSuggestions(null);
+
+    const input: KeywordSuggestionInput = {
+      topic: values.topic,
+      ...(values.language && { language: values.language }),
+      ...(values.country && { country: values.country }),
+    };
+
+    try {
+      const result = await suggestKeywords(input);
+      if (result.suggestions) {
+        setSuggestions(result.suggestions);
+        if (result.suggestions.length === 0) {
+            toast({
+            title: "No Suggestions",
+            description: "The AI couldn't find any specific suggestions for this topic. Try being more specific or broader.",
+            variant: "default",
+            });
+        } else {
+            toast({
+            title: "Keywords Suggested!",
+            description: `Found ${result.suggestions.length} keyword ideas.`,
+            });
+        }
+      } else {
+        throw new Error("AI did not return any suggestions.");
+      }
+    } catch (e) {
+      console.error("Error suggesting keywords:", e);
+      const errorMessage = e instanceof Error ? e.message : "An unexpected error occurred.";
+      setError(errorMessage);
+      toast({
+        title: "Suggestion Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-6 mt-6">
+      <Card className="shadow-md border-border/50">
+        <CardHeader>
+          <CardTitle className="text-xl flex items-center">
+            <Lightbulb className="mr-2 h-5 w-5 text-primary" />
+            Run Keyword Suggestion Tool
+          </CardTitle>
+          <CardDescription>
+            Enter a topic, and optionally language (e.g., en, es) and country codes (e.g., US, GB), to get AI-powered keyword suggestions.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="topic"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Topic / Seed Keyword</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., sustainable gardening, digital marketing trends" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="language"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Language (Optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., en, es, fr" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="country"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Country Code (Optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., US, GB, CA" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating Ideas...
+                  </>
+                ) : (
+                  <>
+                    <Search className="mr-2 h-4 w-4" />
+                    Get Keyword Ideas
+                  </>
+                )}
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {suggestions && suggestions.length > 0 && (
+        <Card className="shadow-md border-border/50">
+          <CardHeader>
+            <CardTitle className="text-xl">Generated Keyword Suggestions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[400px] rounded-md">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Keyword</TableHead>
+                    <TableHead>Potential Use / Context</TableHead>
+                    <TableHead className="text-right">Relevance</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {suggestions.map((suggestion, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">{suggestion.keyword}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">{suggestion.potentialUse || "-"}</TableCell>
+                      <TableCell className="text-right">
+                        {suggestion.relevanceScore !== undefined ? (
+                           <Badge variant={suggestion.relevanceScore > 0.7 ? "default" : suggestion.relevanceScore > 0.4 ? "secondary" : "outline"}>
+                             {(suggestion.relevanceScore * 100).toFixed(0)}%
+                           </Badge>
+                        ) : (
+                          "-"
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+      {suggestions && suggestions.length === 0 && !isLoading && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertTitle>No Suggestions Found</AlertTitle>
+          <AlertDescription>
+            The AI could not generate specific keyword suggestions for the provided topic. 
+            Consider refining your topic or trying a broader search term.
+          </AlertDescription>
+        </Alert>
+      )}
+    </div>
+  );
+};
