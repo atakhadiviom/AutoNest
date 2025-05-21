@@ -21,7 +21,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { Spinner, FullPageLoader } from "@/components/ui/loader";
 import { useToast } from "@/hooks/use-toast";
 
-const PAYPAL_CLIENT_ID = "AXphOTlKv9G2m2wdB1UUy5yLd9ld4NRW1bh40Zxq7h-O6Si1TehB5gYYmRtM5i2Y6MjzxZdwpQpG1vxX";
+const PAYPAL_CLIENT_ID = "AfxvMbf0Sdap_JVtGjI0rEe62y3zs4iGfFeTmKySR7VH-sO06IP7dO_fvIkkx3RRkjRBW52kfklQmVg3"; // Updated Live Client ID
 const CREDITS_PER_DOLLAR = 100; 
 
 function PayPalPaymentButtons({ 
@@ -42,6 +42,18 @@ function PayPalPaymentButtons({
   const [{ isPending, isRejected, options: scriptOptions }, dispatch] = usePayPalScriptReducer();
   const { toast } = useToast();
   const dollarAmount = (creditsToPurchase / CREDITS_PER_DOLLAR).toFixed(2);
+
+  // Add beforeunload listener to warn users during payment processing
+  useEffect(() => {
+    if (isParentProcessing) {
+      const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+        e.preventDefault();
+        e.returnValue = "A payment is in progress. Are you sure you want to leave?";
+      };
+      window.addEventListener("beforeunload", handleBeforeUnload);
+      return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    }
+  }, [isParentProcessing]);
 
   useEffect(() => {
     if (isRejected) {
@@ -79,14 +91,21 @@ function PayPalPaymentButtons({
 
     console.log("[PayPalButtons] createOrder: Constructing purchase_units:", JSON.stringify(purchaseUnits, null, 2));
 
-    return actions.order.create({
-      purchase_units: purchaseUnits
-    }).then((orderID) => {
+    const orderPromise = actions.order.create({
+      purchase_units: purchaseUnits,
+      intent: "CAPTURE"
+    });
+
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("PayPal order creation timed out. Please try again.")), 30000) // 30-second timeout
+    );
+
+    return Promise.race([orderPromise, timeoutPromise]).then((orderID) => {
       console.log("[PayPalButtons] createOrder successful. Order ID:", orderID);
       return orderID;
     }).catch(err => {
-      console.error("[PayPalButtons] Error in actions.order.create():", err);
-      setPaymentProcessingParent(false); 
+      console.error("[PayPalButtons] Error in actions.order.create():", { error: err, creditsToPurchase, dollarAmount });
+ setPaymentProcessingParent(false);
       onPaymentError(err); 
       throw err; 
     });
@@ -274,7 +293,7 @@ export default function BillingPage() {
   const handlePaymentCancel = () => {
     setPaymentError("Payment process was cancelled or the window was closed before completion.");
     toast({
-        title: "Payment Cancelled",
+ title: "Payment Cancelled",
         description: "The payment window was closed before completion or the process was cancelled.",
         variant: "default", 
     });
@@ -337,14 +356,14 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle className="text-xl">Add Credits via PayPal</CardTitle>
             <CardDescription>
-              Securely add credits to your account using PayPal Sandbox. ({CREDITS_PER_DOLLAR} Credits = $1.00 USD)
+              Securely add credits to your account using PayPal. ({CREDITS_PER_DOLLAR} Credits = $1.00 USD)
             </CardDescription>
              {(!PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID.startsWith("YOUR_") ) && (
                 <Alert variant="destructive" className="mt-2">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>PayPal Not Configured</AlertTitle>
                     <AlertDescription>
-                    The PayPal Client ID is a placeholder or missing. This section will not function until a valid Sandbox Client ID is provided.
+                    The PayPal Client ID is a placeholder or missing. This section will not function until a valid Client ID is provided.
                     </AlertDescription>
                 </Alert>
             )}
@@ -407,15 +426,15 @@ export default function BillingPage() {
               </Alert>
             )}
              {paymentError && PAYPAL_CLIENT_ID && !PAYPAL_CLIENT_ID.startsWith("YOUR_") && ( 
-                <Button onClick={() => { setPaymentError(null); setCreditsToPurchase(100); setPaymentProcessing(false); }} variant="outline" className="mt-2">
-                    <RefreshCw className="mr-2 h-4 w-4"/> Clear Error & Reset Amount
+                <Button onClick={() => { setPaymentError(null); setPaymentProcessing(false); }} variant="outline" className="mt-2">
+                    <RefreshCw className="mr-2 h-4 w-4"/> Retry Payment
                 </Button>
             )}
 
           </CardContent>
           <CardFooter>
             <p className="text-xs text-muted-foreground">
-                Payments are processed using PayPal's Sandbox environment for testing purposes. No real money is transferred.
+                Payments are processed using PayPal. For testing with a sandbox account, please use your PayPal Sandbox credentials.
                 For more information, visit <a href="https://developer.paypal.com/docs/api/overview/" target="_blank" rel="noopener noreferrer" className="underline text-primary hover:text-primary/80">PayPal Developer <ExternalLink className="inline h-3 w-3 ml-0.5"/></a>.
             </p>
           </CardFooter>
@@ -460,7 +479,3 @@ export default function BillingPage() {
     </AppLayout>
   );
 }
-
-    
-
-    
