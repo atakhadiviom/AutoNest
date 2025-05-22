@@ -1,3 +1,9 @@
+// This file is no longer needed as PayPal integration has been removed.
+// You can safely delete this file.
+
+/*
+Original content (for reference, to be deleted):
+
 import paypal from "@paypal/checkout-server-sdk";
 import {config} from "firebase-functions";
 import * as dotenv from "dotenv";
@@ -26,8 +32,6 @@ if (!clientId || !clientSecret || !environmentConfig) {
     "PayPal client ID, client secret, or environment is not configured."
   );
   throw new Error(
-    // Informative error message guiding the user on how to configure PayPal
-    // credentials for both deployed functions and local emulation.
     "PayPal client ID, client secret, or environment not configured. " +
     "For deployed functions, set with " +
     "'firebase functions:config:set paypal.client_id=...' etc. " +
@@ -44,3 +48,4 @@ const environment =
 const client = new paypal.core.PayPalHttpClient(environment);
 
 export default client;
+*/
