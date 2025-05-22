@@ -7,7 +7,8 @@ import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 import paypalClient from "./paypalClient"; // Corrected import path
-import paypal from "@paypal/checkout-server-sdk"; // Ensure this is also imported if types are needed directly
+// Using * as paypal from "@paypal/checkout-server-sdk" to access OrdersCreateRequest etc.
+import * as paypal from "@paypal/checkout-server-sdk";
 
 // Initialize Firebase Admin SDK.
 if (admin.apps.length === 0) {
@@ -60,16 +61,21 @@ main.post("/create-order", async (req, res) => {
     const order = await paypalClient.execute(request);
     functions.logger.info(
       `[Cloud Function] PayPal Order Created: ${order.result.id}`,
-      {structuredData: true}
+      {structuredData: true},
     );
     return res.status(201).json({id: order.result.id});
-  } catch (err: any) {
-    functions.logger.error("[Cloud Function] Error creating PayPal order:", err.message, {
-      paypalStatusCode: err.statusCode,
-      paypalResult: err.result || err.data, // err.result is common for PayPalHttpError
-      fullError: err, // Log the full error object for more details
-      structuredData: true,
-    });
+  } catch (err: any) { // Keeping 'any' for now to focus on blocking errors
+    functions.logger.error(
+      "[Cloud Function] Error creating PayPal order:",
+      err.message,
+      {
+        paypalStatusCode: err.statusCode,
+        // err.result is common for PayPalHttpError, err.data might be for other types
+        paypalResult: err.result || err.data,
+        fullError: err, // Log the full error object for more details
+        structuredData: true,
+      },
+    );
     let errorMessage = "Failed to create PayPal order.";
     // Check if PayPal SDK error has a specific message
     if (err.result && err.result.message) {
@@ -77,7 +83,9 @@ main.post("/create-order", async (req, res) => {
     } else if (err.message) { // Fallback to generic error message
       errorMessage = err.message;
     }
-    return res.status(err.statusCode || 500).json({error: errorMessage, details: err.result || err.data});
+    return res
+      .status(err.statusCode || 500)
+      .json({error: errorMessage, details: err.result || err.data});
   }
 });
 
@@ -102,14 +110,14 @@ main.post("/capture-payment", async (req, res) => {
   }
 
   const request = new paypal.orders.OrdersCaptureRequest(orderID);
-  // @ts-ignore
-  request.requestBody({}); // Empty body for capture
+  request.requestBody = {}; // Empty body for capture
 
   try {
     const capture = await paypalClient.execute(request);
     functions.logger.info(
-      `[Cloud Function] PayPal Payment Captured. Status: ${capture.result.status}, ID: ${capture.result.id}`,
-      {structuredData: true}
+      "[Cloud Function] PayPal Payment Captured. Status: " +
+      `${capture.result.status}, ID: ${capture.result.id}`,
+      {structuredData: true},
     );
 
     if (capture.result.status === "COMPLETED") {
@@ -120,25 +128,30 @@ main.post("/capture-payment", async (req, res) => {
             admin.firestore.FieldValue.increment(creditsToPurchase),
         });
         functions.logger.info(
-          `[Cloud Function] Successfully updated credits for user ${userUID} by ${creditsToPurchase} via Admin SDK.`,
-          {structuredData: true}
+          `[Cloud Function] Successfully updated credits for user ${userUID} ` +
+          `by ${creditsToPurchase} via Admin SDK.`,
+          {structuredData: true},
         );
-      } catch (adminError: any) {
+      } catch (adminError: any) { // Keeping 'any' for now
         functions.logger.error(
-          `[Cloud Function] CRITICAL: Failed to update credits for user ${userUID} via Admin SDK after successful PayPal capture. Manual intervention required. Error:`,
+          "[Cloud Function] CRITICAL: Failed to update credits for user " +
+          `${userUID} via Admin SDK after successful PayPal capture. ` +
+          "Manual intervention required. Error:",
           adminError,
           {
             errorMessage: adminError.message,
             errorCode: adminError.code,
             fullError: adminError,
             structuredData: true,
-          }
+          },
         );
         // Even if Firestore update fails, the PayPal transaction was successful.
-        // Log for manual reconciliation. Consider how to handle this in production (e.g., retry queue).
+        // Log for manual reconciliation.
+        // Consider how to handle this in production (e.g., retry queue).
         return res.status(500).json({
           error:
-            "Payment captured but failed to update credits. Please contact support.",
+            "Payment captured but failed to update credits. " +
+            "Please contact support.",
           paypalCaptureId: capture.result.id,
           adminErrorCode: adminError.code,
         });
@@ -152,8 +165,9 @@ main.post("/capture-payment", async (req, res) => {
     } else {
       // Handle other capture statuses if necessary, e.g., PENDING
       functions.logger.warn(
-        `[Cloud Function] PayPal payment captured but status is not COMPLETED. Status: ${capture.result.status}`,
-        {paypalResult: capture.result, structuredData: true}
+        "[Cloud Function] PayPal payment captured but status is not COMPLETED." +
+        ` Status: ${capture.result.status}`,
+        {paypalResult: capture.result, structuredData: true},
       );
       return res.status(400).json({
         error: `Payment status: ${capture.result.status}`,
@@ -161,42 +175,54 @@ main.post("/capture-payment", async (req, res) => {
         paypalCaptureId: capture.result.id,
       });
     }
-  } catch (err: any) {
-    functions.logger.error("[Cloud Function] Error capturing PayPal payment:", err.message, {
+  } catch (err: any) { // Keeping 'any' for now
+    functions.logger.error(
+      "[Cloud Function] Error capturing PayPal payment:",
+      err.message,
+      {
         paypalStatusCode: err.statusCode,
         paypalResult: err.result || err.data,
         fullError: err,
         structuredData: true,
-      }
+      },
     );
     let errorDetailsMessage = err.message || "Failed to capture PayPal payment.";
-    let httpStatusCode = err.statusCode || 500;
+    const httpStatusCode = err.statusCode || 500;
 
     // Check for specific PayPal error like INSTRUMENT_DECLINED
-    if (err.result && err.result.details && Array.isArray(err.result.details) && err.result.details.length > 0 && err.result.details[0].issue === 'INSTRUMENT_DECLINED') {
-      functions.logger.warn("[Cloud Function] Instrument declined for PayPal payment.", {
-        orderID: orderID,
-        paypalErrorName: err.result.name, // e.g., 'UNPROCESSABLE_ENTITY'
-        paypalErrorDetails: err.result.details,
-        structuredData: true,
-      });
+    if (
+      err.result &&
+      err.result.details &&
+      Array.isArray(err.result.details) &&
+      err.result.details.length > 0 &&
+      err.result.details[0].issue === "INSTRUMENT_DECLINED"
+    ) {
+      functions.logger.warn(
+        "[Cloud Function] Instrument declined for PayPal payment.",
+        {
+          orderID: orderID,
+          paypalErrorName: err.result.name, // e.g., "UNPROCESSABLE_ENTITY"
+          paypalErrorDetails: err.result.details,
+          structuredData: true,
+        },
+      );
       return res.status(402).json({ // 402 Payment Required
         error: "Payment method declined by PayPal.",
-        paypalErrorName: err.result.name || 'INSTRUMENT_DECLINED',
+        paypalErrorName: err.result.name || "INSTRUMENT_DECLINED",
         details: err.result.details,
       });
     } else if (err.result && err.result.message) {
       errorDetailsMessage = err.result.message;
     }
-    
+
     return res.status(httpStatusCode).json({
       error: "Failed to capture PayPal payment.",
       details: errorDetailsMessage,
-      paypalErrorResult: err.result || err.data
+      paypalErrorResult: err.result || err.data,
     });
   }
 });
 
 // Export the Express API as a Cloud Function
-// The name 'paypalAPI' will be part of the function URL
+// The name "paypalAPI" will be part of the function URL
 export const paypalAPI = functions.https.onRequest(main);
