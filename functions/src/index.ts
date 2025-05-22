@@ -93,9 +93,10 @@ app.post("/create-order", async (req: Request, res: Response) => {
     const errDesc = err.result?.details?.[0]?.description;
     const errorMessage = errDesc || err.message || "Create order failed.";
     functions.logger.error("Create order fail:", {
-      msg: err.message,
-      code: statusCode,
-      paypalDetails: err.result?.details || "N/A",
+      message: err.message,
+      statusCode: statusCode,
+      details: err.result ? err.result.details : "No details",
+      fullError: err,
     });
     return res.status(statusCode).json({error: errorMessage});
   }
@@ -114,7 +115,6 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
   }
 
   const request = new checkoutNodeJssdk.orders.OrdersCaptureRequest(orderID);
-  // No requestBody needed for capture for standard SDK usage
 
   try {
     const capture = await paypalClient.execute(request);
@@ -160,11 +160,14 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       });
     }
   } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-    const logMessage = `Capture fail for ${orderID}:`;
+    const logMessage = `Failed to capture PayPal for ${orderID}:`;
     const paypalDetails = err.result?.details || "N/A";
 
     functions.logger.error(logMessage, {
-      msg: err.message, code: err.statusCode, paypalDetails,
+      message: err.message,
+      statusCode: err.statusCode,
+      details: paypalDetails,
+      fullError: err,
     });
 
     // Check for INSTRUMENT_DECLINED specifically
@@ -173,8 +176,8 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       err.result?.details?.[0]?.issue === "INSTRUMENT_DECLINED"
     ) {
       functions.logger.warn(
-        `Instrument declined for order ${orderID}. Details:`,
-        err.result.details
+        `Instrument declined for order ${orderID}.`,
+        {details: err.result.details},
       );
       return res.status(402).json({ // 402 Payment Required
         error: "Payment method declined by PayPal.",
