@@ -11,8 +11,8 @@
 // Firebase and basic imports
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-// import {onRequest} from "firebase-functions/v2/https"; // Keep if using v2
-// import * as logger from "firebase-functions/logger"; // Keep if using logger
+// import {onRequest} from "firebase-functions/v2/https";
+// import * as logger from "firebase-functions/logger";
 
 // Express for API routing
 import express, {Request, Response} from "express";
@@ -21,8 +21,8 @@ import bodyParser from "body-parser";
 
 // PayPal
 import paypalClient from "./paypalClient";
-// Use require for PayPal SDK to ensure CommonJS loading
-const checkoutNodeJssdk = require("@paypal/checkout-server-sdk");
+// Use a namespace import for PayPal SDK for robust compatibility
+import * as checkoutNodeJssdk from "@paypal/checkout-server-sdk";
 
 
 // Initialize Firebase Admin SDK
@@ -64,8 +64,8 @@ app.post("/create-order", async (req: Request, res: Response) => {
     purchase_units: [{
       amount: {
         currency_code: "USD",
-        value: dollarAmount, // e.g., "10.00"
-        breakdown: { // Optional, but good for itemized view
+        value: dollarAmount,
+        breakdown: {
           item_total: {
             currency_code: "USD",
             value: dollarAmount,
@@ -73,7 +73,7 @@ app.post("/create-order", async (req: Request, res: Response) => {
         },
       },
       description: `${creditsToPurchase} App Credits Purchase`,
-      items: [{ // Optional, but good for receipt details
+      items: [{
         name: "App Credits",
         unit_amount: {
           currency_code: "USD",
@@ -81,7 +81,7 @@ app.post("/create-order", async (req: Request, res: Response) => {
         },
         quantity: "1",
         description: `${creditsToPurchase} credits for AutoNest app.`,
-        sku: `AUTONEST-CREDITS-${creditsToPurchase}`, // Example SKU
+        sku: `AUTONEST-CREDITS-${creditsToPurchase}`,
       }],
     }],
   });
@@ -90,12 +90,12 @@ app.post("/create-order", async (req: Request, res: Response) => {
     const order = await paypalClient.execute(request);
     functions.logger.info("PayPal order created successfully:", order.result);
     return res.status(200).json({orderID: order.result.id});
-  } catch (err: any) {
+  } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
     functions.logger.error("Failed to create PayPal order:", {
       message: err.message,
       statusCode: err.statusCode,
       details: err.result ? err.result.details : "No details",
-      fullError: err, // Log the full error object for more details
+      fullError: err,
     });
     const statusCode = err.statusCode || 500;
     const errorMessage =
@@ -119,7 +119,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
   }
 
   const request = new checkoutNodeJssdk.orders.OrdersCaptureRequest(orderID);
-  // request.requestBody({}); // Body is empty for capture
+  // No requestBody is needed for capture in most standard scenarios with this SDK version.
 
   try {
     const capture = await paypalClient.execute(request);
@@ -128,9 +128,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       "PayPal payment captured successfully:", captureData,
     );
 
-    // Check if payment is completed
     if (captureData.status === "COMPLETED") {
-      // Payment successful, update user credits in Firestore
       const userDocRef = db.collection("users").doc(userUID);
       try {
         await userDocRef.update({
@@ -139,18 +137,16 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
         functions.logger.info(
           `Successfully updated credits for user ${userUID}.`,
         );
-        // Return success to client
         return res.status(200).json({
           message: "Payment successful and credits updated.",
           captureData: captureData,
         });
-      } catch (dbError: any) {
+      } catch (dbError: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
         functions.logger.error(
           `PayPal payment captured for order ${orderID}, ` +
           `but failed to update credits for user ${userUID}:`,
           dbError,
         );
-        // Critical: Payment taken, credits not awarded. Implement retry/alert.
         return res.status(500).json({
           error: "Payment successful, but credit update failed. " +
                  "Please contact support.",
@@ -158,7 +154,6 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
         });
       }
     } else {
-      // Handle other capture statuses (e.g., PENDING) if necessary
       functions.logger.warn(
         `PayPal capture status for order ${orderID} is ${captureData.status}.`,
       );
@@ -167,15 +162,14 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
         details: captureData,
       });
     }
-  } catch (err: any) {
+  } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
     functions.logger.error(`Failed to capture PayPal for ${orderID}:`, {
       message: err.message,
       statusCode: err.statusCode,
       details: err.result ? err.result.details : "No details",
-      fullError: err, // Log the full error object
+      fullError: err,
     });
 
-    // Check for INSTRUMENT_DECLINED specifically
     if (
       err.statusCode === 422 &&
       err.result?.details?.[0]?.issue === "INSTRUMENT_DECLINED"
@@ -184,7 +178,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
         `Instrument declined for order ${orderID}.`,
         err.result.details,
       );
-      return res.status(402).json({ // 402 Payment Required
+      return res.status(402).json({
         error: "Payment method declined by PayPal.",
         isInstrumentDeclined: true,
         details: err.result.details,
@@ -208,6 +202,6 @@ export const paypalAPI = functions.https.onRequest(app);
 export const helloWorld = functions.https.onRequest((
   _req: Request, response: Response,
 ) => {
-  // functions.logger.info("Hello logs!", {structuredData: true});
+  functions.logger.info("Hello logs!", {structuredData: true});
   response.send("Hello from simplified Firebase!");
 });

@@ -2,8 +2,8 @@
 import * as functions from "firebase-functions";
 import * as dotenv from "dotenv";
 
-// Use require for PayPal SDK to ensure CommonJS loading
-const paypal = require("@paypal/checkout-server-sdk");
+// Use a namespace import for PayPal SDK for robust compatibility
+import * as paypal from "@paypal/checkout-server-sdk";
 
 // Load .env file for local development/emulation.
 // In deployed Firebase, use functions.config().
