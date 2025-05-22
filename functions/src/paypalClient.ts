@@ -1,3 +1,4 @@
+
 import paypal from "@paypal/checkout-server-sdk";
 import * as functions from "firebase-functions";
 import * as dotenv from "dotenv";
@@ -19,13 +20,10 @@ const environmentConfig = functions.config().paypal?.environment ||
 
 if (!clientId || !clientSecret || !environmentConfig) {
   // Reformatting errorMessage using a template literal
-  const errorMessage = `PayPal client ID, client secret, or environment not configured.
-For DEPLOYED functions, ensure you have set these using the Firebase CLI:
-  'firebase functions:config:set paypal.client_id=...'
-  'firebase functions:config:set paypal.client_secret=...'
-  'firebase functions:config:set paypal.environment=...'
-For LOCAL EMULATION, ensure your functions/.env file is correctly set
-with CLIENT_ID, SECRET, and ENVIRONMENT.`;
+  const errorMessage = `PayPal config missing.
+Set paypal.client_id, paypal.client_secret, paypal.environment
+via 'firebase functions:config:set' for deployed functions,
+or in functions/.env for local emulation.`;
   console.error(errorMessage);
   throw new Error(errorMessage);
 }
