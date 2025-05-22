@@ -27,19 +27,84 @@ main.get("/", (req, res) => {
   res.send("PayPal API for AutoNest is live!");
 });
 
+// Webhook verification endpoint
+main.post("/webhook", async (req, res) => {
+  const webhookId = process.env.PAYPAL_WEBHOOK_ID ||
+    functions.config().paypal.webhook_id;
+  
+  if (!webhookId) {
+    functions.logger.error(
+      "[Cloud Function] PayPal webhook ID not configured",
+      {structuredData: true}
+    );
+    return res.status(500).json({
+      error: "Server configuration error"
+    });
+  }
+
+  try {
+    const verifyRequest = new paypal.notifications
+      .WebhooksVerifySignatureRequest();
+    verifyRequest.requestBody({
+      auth_algo: req.headers['paypal-auth-algo'],
+      cert_url: req.headers['paypal-cert-url'],
+      transmission_id: req.headers['paypal-transmission-id'],
+      transmission_sig: req.headers['paypal-transmission-sig'],
+      transmission_time: req.headers['paypal-transmission-time'],
+      webhook_id: webhookId,
+      webhook_event: req.body
+    });
+
+    const response = await paypalClient.execute(verifyRequest);
+    if (response.result.verification_status === "SUCCESS") {
+      // Process verified webhook event
+      functions.logger.info(
+        "[Cloud Function] Verified PayPal webhook event:",
+        {eventType: req.body.event_type, structuredData: true}
+      );
+      
+      // Handle different event types
+      if (req.body.event_type === "PAYMENT.CAPTURE.COMPLETED") {
+        // Process completed payment
+      }
+      
+      return res.status(200).json({status: "success"});
+    } else {
+      functions.logger.warn(
+        "[Cloud Function] Failed webhook verification",
+        {verificationStatus: response.result.verification_status, structuredData: true}
+      );
+      return res.status(403).json({error: "Verification failed"});
+    }
+  } catch (err) {
+    functions.logger.error(
+      "[Cloud Function] Webhook verification error:",
+      err,
+      {structuredData: true}
+    );
+    return res.status(500).json({error: "Verification error"});
+  }
+});
+
 // Create PayPal Order
 main.post("/create-order", async (req, res) => {
-  const {dollarAmount, creditsToPurchase} = req.body;
+  const { dollarAmount, creditsToPurchase } = req.body;
 
-  if (!dollarAmount || typeof dollarAmount !== "number" || dollarAmount <= 0) {
-    return res.status(400).json({error: "Invalid amount specified."});
+  if (!dollarAmount || 
+    typeof dollarAmount !== "number" || 
+    dollarAmount <= 0) {
+    return res.status(400).json({
+      error: "Invalid amount specified"
+    });
   }
-  if (!creditsToPurchase || typeof creditsToPurchase !== "number" ||
-    creditsToPurchase <= 0
-  ) {
+  if (!creditsToPurchase || 
+    typeof creditsToPurchase !== "number" || 
+    creditsToPurchase <= 0) {
     return res
       .status(400)
-      .json({error: "Invalid creditsToPurchase specified."});
+      .json({
+        error: "Invalid creditsToPurchase specified"
+      });
   }
 
   const request = new paypal.orders.OrdersCreateRequest();
@@ -64,7 +129,7 @@ main.post("/create-order", async (req, res) => {
       {structuredData: true},
     );
     return res.status(201).json({id: order.result.id});
-  } catch (err: any) { // Keeping 'any' for now to focus on blocking errors
+  } catch (err: unknown) { // Changed from any to unknown type
     functions.logger.error(
       "[Cloud Function] Error creating PayPal order:",
       err.message,
@@ -91,22 +156,26 @@ main.post("/create-order", async (req, res) => {
 
 // Capture PayPal Payment
 main.post("/capture-payment", async (req, res) => {
-  const {orderID, creditsToPurchase, userUID} = req.body;
+  const { orderID, creditsToPurchase, userUID } = req.body;
 
   if (!orderID) {
     return res.status(400).json({error: "Missing orderID."});
   }
-  if (!creditsToPurchase || typeof creditsToPurchase !== "number" ||
-    creditsToPurchase <= 0
-  ) {
+  if (!creditsToPurchase || 
+    typeof creditsToPurchase !== "number" || 
+    creditsToPurchase <= 0) {
     return res
       .status(400)
-      .json({error: "Invalid creditsToPurchase specified."});
+      .json({
+        error: "Invalid creditsToPurchase specified"
+      });
   }
   if (!userUID) {
     return res
       .status(400)
-      .json({error: "Missing userUID for credit update."});
+      .json({
+        error: "Missing userUID for credit update"
+      });
   }
 
   const request = new paypal.orders.OrdersCaptureRequest(orderID);
@@ -121,39 +190,64 @@ main.post("/capture-payment", async (req, res) => {
     );
 
     if (capture.result.status === "COMPLETED") {
-      try {
-        const userDocRef = db.collection("users").doc(userUID);
-        await userDocRef.update({
-          credits:
-            admin.firestore.FieldValue.increment(creditsToPurchase),
-        });
-        functions.logger.info(
-          `[Cloud Function] Successfully updated credits for user ${userUID} ` +
-          `by ${creditsToPurchase} via Admin SDK.`,
-          {structuredData: true},
-        );
-      } catch (adminError: any) { // Keeping 'any' for now
+      // Implement retry logic for Firestore updates
+      const maxRetries = 3;
+      let retryCount = 0;
+      let lastError: unknown;
+      
+      while (retryCount < maxRetries) {
+        try {
+          const userDocRef = db.collection("users").doc(userUID);
+          await userDocRef.update({
+            credits:
+              admin.firestore.FieldValue.increment(creditsToPurchase),
+          });
+          functions.logger.info(
+            `[Cloud Function] Successfully updated credits for user ${userUID} ` +
+            `by ${creditsToPurchase} via Admin SDK.`,
+            {structuredData: true},
+          );
+          break; // Success, exit retry loop
+        } catch (adminError: unknown) {
+          retryCount++;
+          lastError = adminError;
+          functions.logger.warn(
+            `[Cloud Function] Attempt ${retryCount}/${maxRetries} failed to update credits for user ${userUID}.`,
+            {
+              errorMessage: adminError.message,
+              errorCode: adminError.code,
+              fullError: adminError,
+              structuredData: true,
+            },
+          );
+          
+          if (retryCount < maxRetries) {
+            // Exponential backoff before retry (1s, 2s, 4s)
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount - 1)));
+          }
+        }
+      }
+      
+      if (retryCount === maxRetries && lastError) {
         functions.logger.error(
-          "[Cloud Function] CRITICAL: Failed to update credits for user " +
+          "[Cloud Function] CRITICAL: All retries failed to update credits for user " +
           `${userUID} via Admin SDK after successful PayPal capture. ` +
-          "Manual intervention required. Error:",
-          adminError,
+          "Manual intervention required. Last error:",
+          lastError,
           {
-            errorMessage: adminError.message,
-            errorCode: adminError.code,
-            fullError: adminError,
+            errorMessage: lastError.message,
+            errorCode: lastError.code,
+            fullError: lastError,
             structuredData: true,
           },
         );
-        // Even if Firestore update fails, the PayPal transaction was successful.
-        // Log for manual reconciliation.
-        // Consider how to handle this in production (e.g., retry queue).
         return res.status(500).json({
           error:
-            "Payment captured but failed to update credits. " +
+            "Payment captured but failed to update credits after multiple attempts. " +
             "Please contact support.",
           paypalCaptureId: capture.result.id,
-          adminErrorCode: adminError.code,
+          adminErrorCode: lastError.code,
+          retryAttempts: retryCount,
         });
       }
 
@@ -170,12 +264,12 @@ main.post("/capture-payment", async (req, res) => {
         {paypalResult: capture.result, structuredData: true},
       );
       return res.status(400).json({
-        error: `Payment status: ${capture.result.status}`,
-        details: capture.result,
-        paypalCaptureId: capture.result.id,
-      });
+      error: `Payment status: ${capture.result.status}`,
+      details: capture.result,
+      paypalCaptureId: capture.result.id
+    });
     }
-  } catch (err: any) { // Keeping 'any' for now
+  } catch (err: unknown) { // Changed from any to unknown type
     functions.logger.error(
       "[Cloud Function] Error capturing PayPal payment:",
       err.message,
