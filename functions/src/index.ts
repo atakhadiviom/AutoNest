@@ -198,5 +198,3 @@ export const helloWorld = functions.https.onRequest((
   functions.logger.info("Hello logs!", {structuredData: true});
   response.send("Hello from simplified Firebase!");
 });
-
-// Ensure there's a single newline at the end of the file.
