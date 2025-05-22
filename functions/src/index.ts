@@ -1,14 +1,28 @@
 
+/**
+ * Import function triggers from their respective submodules:
+ *
+ * import {onCall} from "firebase-functions/v2/https";
+ * import {onDocumentWritten} from "firebase-functions/v2/firestore";
+ *
+ * See a full list of supported triggers at https://firebase.google.com/docs/functions
+ */
+
+// Firebase and basic imports
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
+// import {onRequest} from "firebase-functions/v2/https"; // Keep if using v2
+// import * as logger from "firebase-functions/logger"; // Keep if using logger
+
+// Express for API routing
 import express, {Request, Response} from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
+
+// PayPal
 import paypalClient from "./paypalClient";
-// Correctly import the necessary type from the SDK.
-// Note: The SDK might not export all internal types directly.
-// We use `orders.OrdersCreateRequest` and `orders.OrdersCaptureRequest`.
-import * as checkoutNodeJssdk from "@paypal/checkout-server-sdk";
+// Use require for PayPal SDK to ensure CommonJS loading
+const checkoutNodeJssdk = require("@paypal/checkout-server-sdk");
 
 
 // Initialize Firebase Admin SDK
@@ -21,7 +35,7 @@ const db = admin.firestore();
 const app = express();
 
 // Middleware
-app.use(cors({origin: true}));
+app.use(cors({origin: true})); // Enable CORS for all origins
 app.use(bodyParser.json());
 
 
@@ -31,12 +45,13 @@ app.post("/create-order", async (req: Request, res: Response) => {
 
   const {dollarAmount, creditsToPurchase} = req.body;
 
-  if (!dollarAmount || typeof dollarAmount !== "string" ||
-      creditsToPurchase === undefined ||
-      typeof creditsToPurchase !== "number") {
-    functions.logger.error(
-      "Invalid input for /create-order:", req.body
-    );
+  if (
+    !dollarAmount ||
+    typeof dollarAmount !== "string" ||
+    creditsToPurchase === undefined ||
+    typeof creditsToPurchase !== "number"
+  ) {
+    functions.logger.error("Invalid input for /create-order:", req.body);
     return res.status(400).json({
       error: "Invalid input. Missing dollarAmount or creditsToPurchase.",
     });
@@ -49,8 +64,8 @@ app.post("/create-order", async (req: Request, res: Response) => {
     purchase_units: [{
       amount: {
         currency_code: "USD",
-        value: dollarAmount,
-        breakdown: {
+        value: dollarAmount, // e.g., "10.00"
+        breakdown: { // Optional, but good for itemized view
           item_total: {
             currency_code: "USD",
             value: dollarAmount,
@@ -58,7 +73,7 @@ app.post("/create-order", async (req: Request, res: Response) => {
         },
       },
       description: `${creditsToPurchase} App Credits Purchase`,
-      items: [{
+      items: [{ // Optional, but good for receipt details
         name: "App Credits",
         unit_amount: {
           currency_code: "USD",
@@ -66,7 +81,7 @@ app.post("/create-order", async (req: Request, res: Response) => {
         },
         quantity: "1",
         description: `${creditsToPurchase} credits for AutoNest app.`,
-        sku: `AUTONEST-CREDITS-${creditsToPurchase}`,
+        sku: `AUTONEST-CREDITS-${creditsToPurchase}`, // Example SKU
       }],
     }],
   });
@@ -80,11 +95,13 @@ app.post("/create-order", async (req: Request, res: Response) => {
       message: err.message,
       statusCode: err.statusCode,
       details: err.result ? err.result.details : "No details",
-      fullError: err,
+      fullError: err, // Log the full error object for more details
     });
     const statusCode = err.statusCode || 500;
-    const errorMessage = err.result?.details?.[0]?.description ||
-                         err.message || "Failed to create PayPal order.";
+    const errorMessage =
+      err.result?.details?.[0]?.description ||
+      err.message ||
+      "Failed to create PayPal order.";
     return res.status(statusCode).json({error: errorMessage});
   }
 });
@@ -95,23 +112,23 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
   const {orderID, creditsToPurchase, userUID} = req.body;
 
   if (!orderID || creditsToPurchase === undefined || !userUID) {
-    functions.logger.error(
-      "Invalid input for /capture-payment:", req.body
-    );
+    functions.logger.error("Invalid input for /capture-payment:", req.body);
     return res.status(400).json({
       error: "Invalid input. Missing orderID, creditsToPurchase, or userUID.",
     });
   }
 
   const request = new checkoutNodeJssdk.orders.OrdersCaptureRequest(orderID);
+  // request.requestBody({}); // Body is empty for capture
 
   try {
     const capture = await paypalClient.execute(request);
     const captureData = capture.result;
     functions.logger.info(
-      "PayPal payment captured successfully:", captureData
+      "PayPal payment captured successfully:", captureData,
     );
 
+    // Check if payment is completed
     if (captureData.status === "COMPLETED") {
       // Payment successful, update user credits in Firestore
       const userDocRef = db.collection("users").doc(userUID);
@@ -120,8 +137,9 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
           credits: admin.firestore.FieldValue.increment(creditsToPurchase),
         });
         functions.logger.info(
-          `Successfully updated credits for user ${userUID}.`
+          `Successfully updated credits for user ${userUID}.`,
         );
+        // Return success to client
         return res.status(200).json({
           message: "Payment successful and credits updated.",
           captureData: captureData,
@@ -129,7 +147,8 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       } catch (dbError: any) {
         functions.logger.error(
           `PayPal payment captured for order ${orderID}, ` +
-          `but failed to update credits for user ${userUID}:`, dbError
+          `but failed to update credits for user ${userUID}:`,
+          dbError,
         );
         // Critical: Payment taken, credits not awarded. Implement retry/alert.
         return res.status(500).json({
@@ -141,7 +160,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
     } else {
       // Handle other capture statuses (e.g., PENDING) if necessary
       functions.logger.warn(
-        `PayPal capture status for order ${orderID} is ${captureData.status}.`
+        `PayPal capture status for order ${orderID} is ${captureData.status}.`,
       );
       return res.status(400).json({
         error: `Payment capture status: ${captureData.status}.`,
@@ -153,12 +172,18 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       message: err.message,
       statusCode: err.statusCode,
       details: err.result ? err.result.details : "No details",
-      fullError: err,
+      fullError: err, // Log the full error object
     });
 
     // Check for INSTRUMENT_DECLINED specifically
-    if (err.statusCode === 422 && err.result?.details?.[0]?.issue ===
-        "INSTRUMENT_DECLINED") {
+    if (
+      err.statusCode === 422 &&
+      err.result?.details?.[0]?.issue === "INSTRUMENT_DECLINED"
+    ) {
+      functions.logger.warn(
+        `Instrument declined for order ${orderID}.`,
+        err.result.details,
+      );
       return res.status(402).json({ // 402 Payment Required
         error: "Payment method declined by PayPal.",
         isInstrumentDeclined: true,
@@ -167,8 +192,10 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
     }
 
     const statusCode = err.statusCode || 500;
-    const errorMessage = err.result?.details?.[0]?.description ||
-                         err.message || "Failed to capture PayPal payment.";
+    const errorMessage =
+      err.result?.details?.[0]?.description ||
+      err.message ||
+      "Failed to capture PayPal payment.";
     return res.status(statusCode).json({error: errorMessage});
   }
 });
@@ -181,6 +208,6 @@ export const paypalAPI = functions.https.onRequest(app);
 export const helloWorld = functions.https.onRequest((
   _req: Request, response: Response,
 ) => {
-  functions.logger.info("Hello logs!", {structuredData: true});
+  // functions.logger.info("Hello logs!", {structuredData: true});
   response.send("Hello from simplified Firebase!");
 });

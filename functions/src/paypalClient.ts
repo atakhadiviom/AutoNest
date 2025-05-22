@@ -1,10 +1,9 @@
 
 import * as functions from "firebase-functions";
 import * as dotenv from "dotenv";
-// Correctly import the necessary type from the SDK.
-// Note: The SDK might not export all internal types directly.
-// We use `paypal.core` for Environment and HttpClient.
-import * as paypal from "@paypal/checkout-server-sdk";
+
+// Use require for PayPal SDK to ensure CommonJS loading
+const paypal = require("@paypal/checkout-server-sdk");
 
 // Load .env file for local development/emulation.
 // In deployed Firebase, use functions.config().
@@ -22,17 +21,21 @@ const environmentConfig =
   paypalConfig?.environment || process.env.PAYPAL_ENVIRONMENT;
 
 if (!clientId || !clientSecret || !environmentConfig) {
-  const errorMessage = "PayPal config missing. Set paypal.client_id, " +
-    "secret, & environment via Firebase config or .env.";
-  functions.logger.error(errorMessage);
+  const errorMessage = "PayPal config missing. Set CLIENT_ID, SECRET, & ENV.";
+  functions.logger.error(errorMessage, {
+    clientIdExists: !!clientId,
+    clientSecretExists: !!clientSecret,
+    environmentConfigExists: !!environmentConfig,
+  });
   throw new Error(errorMessage);
 }
 
-const environment =
-  environmentConfig.toLowerCase() === "live" ?
-    new paypal.core.LiveEnvironment(clientId, clientSecret) :
-    new paypal.core.SandboxEnvironment(clientId, clientSecret);
-
+let environment;
+if (environmentConfig.toLowerCase() === "live") {
+  environment = new paypal.core.LiveEnvironment(clientId, clientSecret);
+} else {
+  environment = new paypal.core.SandboxEnvironment(clientId, clientSecret);
+}
 const client = new paypal.core.PayPalHttpClient(environment);
 
 export default client;
