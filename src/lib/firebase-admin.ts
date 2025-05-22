@@ -1,53 +1,49 @@
 
-// This file is intended for Firebase Admin SDK initialization,
-// typically used in server environments like Cloud Functions or Next.js API routes
-// for privileged operations (e.g., bypassing security rules, minting custom tokens).
-
-// IMPORTANT: You need to set up a service account and configure environment variables
-// for this to work.
-// 1. Go to Firebase Console > Project settings > Service accounts.
-// 2. Generate a new private key (JSON file).
-// 3. DO NOT commit this JSON file to your repository.
-// 4. Set an environment variable FIREBASE_ADMIN_SERVICE_ACCOUNT to the JSON content of this file,
-//    OR set GOOGLE_APPLICATION_CREDENTIALS to the path of this JSON file if your environment supports it.
+// This file is intended for Firebase Admin SDK initialization for use within the
+// Next.js server environment (e.g., API Routes IF they were not moved to Cloud Functions).
+// Since PayPal logic is now intended for dedicated Cloud Functions in the /functions directory,
+// this specific file might not be directly used by those Cloud Functions, as they typically
+// initialize their own admin instance.
+// However, it's good practice to keep it if other parts of your Next.js app might
+// need server-side admin access in the future.
 
 import * as admin from 'firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore'; // Import FieldValue
+import { FieldValue } from 'firebase-admin/firestore';
 
-const serviceAccountKeyFromEnv = process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT;
-
+// Ensure this is only initialized once
 if (!admin.apps.length) {
+  const serviceAccountKeyFromEnv = process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON_STRING;
+
   if (serviceAccountKeyFromEnv) {
     try {
       const serviceAccount = JSON.parse(serviceAccountKeyFromEnv);
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
-        // databaseURL: `https://${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.firebaseio.com` // If using Realtime Database
       });
-      console.log("[Firebase Admin] SDK initialized with service account from FIREBASE_ADMIN_SERVICE_ACCOUNT.");
+      console.log("[Firebase Admin SDK - Next.js Context] Initialized with service account from FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON_STRING.");
     } catch (e) {
-      console.error("[Firebase Admin] Error parsing FIREBASE_ADMIN_SERVICE_ACCOUNT JSON:", e);
-      console.error("[Firebase Admin] SDK NOT initialized. Server-side Firestore updates WILL FAIL.");
+      console.error("[Firebase Admin SDK - Next.js Context] Error parsing FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON_STRING:", e);
+      console.error("[Firebase Admin SDK - Next.js Context] NOT initialized. Server-side operations in Next.js needing admin WILL FAIL.");
     }
   } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-     admin.initializeApp({
-        // Credential is automatically read from GOOGLE_APPLICATION_CREDENTIALS
-        // if the env var is set and points to a valid service account JSON file.
-     });
-     console.log("[Firebase Admin] SDK initialized using GOOGLE_APPLICATION_CREDENTIALS.");
+    // This is common for environments like Google Cloud Run (where App Hosting might run)
+    // or if you set this environment variable locally pointing to your service account key file.
+    try {
+      admin.initializeApp(); // Uses GOOGLE_APPLICATION_CREDENTIALS by default if set
+      console.log("[Firebase Admin SDK - Next.js Context] Initialized using GOOGLE_APPLICATION_CREDENTIALS.");
+    } catch (e) {
+       console.error("[Firebase Admin SDK - Next.js Context] Error initializing with GOOGLE_APPLICATION_CREDENTIALS:", e);
+       console.error("[Firebase Admin SDK - Next.js Context] NOT initialized. Server-side operations in Next.js needing admin WILL FAIL.");
+    }
   } else {
     console.warn(
-      '[Firebase Admin] SDK not initialized. Missing FIREBASE_ADMIN_SERVICE_ACCOUNT or GOOGLE_APPLICATION_CREDENTIALS environment variable. ' +
-      'Server-side Firestore updates needing admin privileges WILL FAIL.'
+      '[Firebase Admin SDK - Next.js Context] Not initialized. Missing FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON_STRING or GOOGLE_APPLICATION_CREDENTIALS. ' +
+      'Server-side operations in Next.js needing admin will fail.'
     );
   }
 }
 
-export const db = admin.firestore();
-export const auth = admin.auth();
-export { FieldValue }; // Export FieldValue
+const adminDb = admin.firestore();
+const adminAuth = admin.auth();
 
-// NOTE: For Vercel deployment, you'd typically store the service account JSON content
-// in a Vercel environment variable (e.g., FIREBASE_ADMIN_SERVICE_ACCOUNT) and parse it.
-// For Firebase Cloud Functions, Application Default Credentials often work if the function
-// has the correct IAM permissions.
+export { adminDb, adminAuth, FieldValue as AdminFieldValue };

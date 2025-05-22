@@ -1,0 +1,17 @@
+# Node
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.env
+*.env.*
+!*.env.sample
+
+# Firebase
+coverage
+firebase-debug.log
+firebase-debug.*.log
+*.sqlite
+
+# Build output
+lib/

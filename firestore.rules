@@ -1,0 +1,31 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Rules for the workflowRunLogs collection
+    // This allows any authenticated user to read/write to workflowRunLogs.
+    // For production, you'd want more granular control.
+    match /workflowRunLogs/{logId} {
+      allow read, write: if request.auth != null;
+      // A more secure rule for production might be:
+      // allow create: if request.auth.uid == request.resource.data.userId;
+      // allow read: if request.auth.uid == resource.data.userId;
+      // allow update, delete: if false;
+    }
+
+    // Rules for the users collection (for storing credits and user info)
+    match /users/{userId} {
+      // Allow a user to read their own document.
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // Allow a user to create their own document (e.g., on signup).
+      allow create: if request.auth != null && request.auth.uid == userId;
+      // Allow a user to update their own document (e.g., for credit changes).
+      // WARNING: For a production application, credit updates should ideally
+      // be handled by a secure backend (e.g., Cloud Functions) to prevent tampering.
+      allow update: if request.auth != null && request.auth.uid == userId;
+      // Generally, disallow direct deletion of user documents from client.
+      allow delete: if false;
+    }
+  }
+}
