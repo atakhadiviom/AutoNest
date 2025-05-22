@@ -11,8 +11,8 @@ import {
   signInWithEmailAndPassword, 
   signOut 
 } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase'; // Import the initialized auth and db instances
-import { doc, getDoc, setDoc, updateDoc, increment } from "firebase/firestore"; // Firestore functions
+import { auth, db } from '@/lib/firebase';
+import { doc, getDoc, setDoc, updateDoc, increment, Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 
 interface User {
@@ -28,12 +28,12 @@ interface AuthContextType {
   signup: (email: string, password?: string) => Promise<void>;
   logout: () => Promise<void>;
   deductCredits: (amount: number) => Promise<void>;
-  addCredits: (amount: number) => Promise<void>; // For billing page simulation
+  addCredits: (amount: number, updateFirestore?: boolean) => Promise<void>; 
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const DEFAULT_CREDITS = 100; // Default credits for new users
+const DEFAULT_CREDITS = 100; 
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -55,11 +55,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               credits: userData.credits !== undefined ? userData.credits : DEFAULT_CREDITS,
             });
           } else {
-            // User exists in Auth, but not in Firestore users collection (e.g., old user or signup interrupted)
-            // Create their document with default credits.
             await setDoc(userDocRef, { 
               email: firebaseUser.email, 
-              credits: DEFAULT_CREDITS 
+              credits: DEFAULT_CREDITS,
+              createdAt: Timestamp.now(),
             });
             setUser({ 
               uid: firebaseUser.uid, 
@@ -70,11 +69,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         } catch (error) {
           console.error("Error fetching/creating user document in Firestore:", error);
-          // Fallback to Auth user data with default credits if Firestore interaction fails
           setUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email,
-            credits: DEFAULT_CREDITS, // Fallback credits
+            credits: DEFAULT_CREDITS,
           });
           toast({
             title: "Firestore Error",
@@ -88,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    return () => unsubscribe(); // Cleanup subscription on unmount
+    return () => unsubscribe();
   }, [toast]);
 
   const login = async (email: string, password?: string): Promise<{ success: boolean; error?: any }> => {
@@ -99,33 +97,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             description: err.message,
             variant: "destructive",
           });
-        setLoading(false); // Explicitly set loading false as we are not proceeding
+        setLoading(false); 
         return { success: false, error: { code: 'auth/missing-password', message: err.message } };
     }
     setLoading(true); 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // onAuthStateChanged will handle fetching/setting user data from Firestore.
       toast({
         title: "Logged In",
         description: "Successfully logged in!",
       });
-      // onAuthStateChanged will eventually set setLoading(false) after user state is fully resolved.
       return { success: true };
     } catch (error: any) {
       console.error("Firebase login error: ", error);
       if (error.code === 'auth/invalid-credential') {
         console.warn("Login failed due to invalid credentials. Please ensure the email and password are correct and the user exists.");
-        // No toast here for 'auth/invalid-credential'; AuthForm will handle it.
       } else {
-        // For other types of login errors, show a generic toast.
         toast({
           title: "Login Failed",
           description: error.message || "Could not log in. Please check your credentials.",
           variant: "destructive",
         });
       }
-      setLoading(false); // Error occurred, ensure loading is false.
+      setLoading(false); 
       return { success: false, error }; 
     }
   };
@@ -146,12 +140,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await setDoc(userDocRef, {
         email: userCredential.user.email,
         credits: DEFAULT_CREDITS,
+        createdAt: Timestamp.now(), 
       });
       toast({
         title: "Account Created",
         description: "Successfully signed up! Default credits added.",
       });
-      // onAuthStateChanged will eventually set setLoading(false)
     } catch (error: any) {
       console.error("Firebase signup error: ", error);
       toast({
@@ -195,6 +189,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const userDocRef = doc(db, "users", user.uid);
     try {
+       // THIS SHOULD BE A SERVER-SIDE OPERATION IN PRODUCTION
+      console.warn("[AuthContext] deductCredits called client-side. In production, this must be a server-side operation.");
       await updateDoc(userDocRef, {
         credits: increment(-amount) 
       });
@@ -209,28 +205,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const addCredits = async (amount: number) => {
+  const addCredits = async (amount: number, updateFirestore: boolean = true) => {
     if (!user) {
       toast({ title: "Error", description: "User not found for adding credits.", variant: "destructive" });
-      return; 
+      throw new Error("User not found");
     }
     if (amount <= 0) {
         toast({ title: "Invalid Amount", description: "Credit amount must be positive.", variant: "destructive" });
-        return;
+        throw new Error("Credit amount must be positive");
     }
 
-    const userDocRef = doc(db, "users", user.uid);
-    try {
-      await updateDoc(userDocRef, {
-        credits: increment(amount)
-      });
+    if (updateFirestore) {
+      // THIS SHOULD BE A SERVER-SIDE OPERATION IN PRODUCTION (triggered by verified payment)
+      console.warn("[AuthContext] addCredits called client-side with Firestore update. In production, this should be server-side.");
+      const userDocRef = doc(db, "users", user.uid);
+      try {
+        await updateDoc(userDocRef, {
+          credits: increment(amount)
+        });
+        // Toast for successful Firestore update will be handled by the calling function (e.g., BillingPage)
+      } catch (error) {
+        console.error("Error adding credits in Firestore:", error);
+        toast({ title: "Adding Credits Failed", description: "Could not update credits in the database.", variant: "destructive" });
+        throw error; // Re-throw so the caller knows Firestore update failed
+      }
+    }
 
-      const newCredits = user.credits + amount;
-      setUser({ ...user, credits: newCredits });
-      toast({ title: "Credits Added", description: `${amount} credits added. New balance: ${(newCredits / 100).toFixed(2)}`});
-    } catch (error) {
-      console.error("Error adding credits in Firestore:", error);
-      toast({ title: "Adding Credits Failed", description: "Could not update credits in the database.", variant: "destructive" });
+    // Update local state regardless of direct Firestore update here,
+    // as the server-side call in production would be the source of truth.
+    const newCredits = user.credits + amount;
+    setUser(prevUser => prevUser ? { ...prevUser, credits: prevUser.credits + amount } : null);
+    
+    // Do not show a generic toast here if updateFirestore is false, 
+    // as the calling function (e.g., BillingPage after server confirmation) will show a specific toast.
+    if (updateFirestore) {
+        // This path is for direct client-side addition (e.g., simulation button)
+        toast({ title: "Credits Added (Client)", description: `${amount} credits added. New balance: ${(newCredits / 100).toFixed(2)}`});
     }
   };
 
@@ -249,3 +259,5 @@ export function useAuth() {
   }
   return context;
 }
+
+      

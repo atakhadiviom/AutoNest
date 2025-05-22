@@ -1,31 +1,17 @@
-// This file is no longer needed as PayPal integration has been removed.
-// You can safely delete this file.
-
-/*
-Original content (for reference, to be deleted):
-
 import paypal from "@paypal/checkout-server-sdk";
-import {config} from "firebase-functions";
+import * as functions from "firebase-functions";
 import * as dotenv from "dotenv";
 
-// Load .env file for local development/emulation
-if (process.env.NODE_ENV !== "production") {
+// Load .env file for local development/emulation if not in Firebase Functions environment
+if (!process.env.FUNCTIONS_EMULATOR) {
   dotenv.config();
 }
 
 // Use Firebase Functions config for deployed environment,
-// fallback to process.env for local
-const clientId = process.env.PAYPAL_CLIENT_ID ||
- config().paypal?.client_id;
-// paypal.client_id configured via firebase functions:config:set
-
-const clientSecret = process.env.PAYPAL_CLIENT_SECRET ||
- config().paypal?.client_secret;
-// paypal.client_secret configured via firebase functions:config:set
-
-const environmentConfig = process.env.PAYPAL_ENVIRONMENT ||
- config().paypal?.environment;
-// paypal.environment configured via firebase functions:config:set
+// fallback to process.env for local emulation
+const clientId = functions.config().paypal?.client_id || process.env.PAYPAL_CLIENT_ID;
+const clientSecret = functions.config().paypal?.client_secret || process.env.PAYPAL_CLIENT_SECRET;
+const environmentConfig = functions.config().paypal?.environment || process.env.PAYPAL_ENVIRONMENT;
 
 if (!clientId || !clientSecret || !environmentConfig) {
   console.error(
@@ -36,7 +22,7 @@ if (!clientId || !clientSecret || !environmentConfig) {
     "For deployed functions, set with " +
     "'firebase functions:config:set paypal.client_id=...' etc. " +
     "For local emulation, ensure .env file in /functions directory " +
-    "is correctly set."
+    "is correctly set with PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_ENVIRONMENT."
   );
 }
 
@@ -48,4 +34,3 @@ const environment =
 const client = new paypal.core.PayPalHttpClient(environment);
 
 export default client;
-*/
