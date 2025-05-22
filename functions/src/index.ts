@@ -90,13 +90,16 @@ app.post("/create-order", async (req: Request, res: Response) => {
     const order = await paypalClient.execute(request);
     functions.logger.info("PayPal order created successfully:", order.result);
     return res.status(200).json({orderID: order.result.id});
-  } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-    functions.logger.error("Failed to create PayPal order:", {
-      message: err.message,
-      statusCode: err.statusCode,
-      details: err.result ? err.result.details : "No details",
-      fullError: err,
-    });
+  } catch (err: any) { // eslint-disable-line  @typescript-eslint/no-explicit-any
+    functions.logger.error(
+      "Failed to create PayPal order:",
+      {
+        message: err.message,
+        statusCode: err.statusCode,
+        details: err.result ? err.result.details : "No details",
+        fullError: err,
+      }
+    );
     const statusCode = err.statusCode || 500;
     const errorMessage =
       err.result?.details?.[0]?.description ||
@@ -135,7 +138,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
           credits: admin.firestore.FieldValue.increment(creditsToPurchase),
         });
         functions.logger.info(
-          `Successfully updated credits for user ${userUID}.`,
+          `Successfully updated credits for user ${userUID}.`
         );
         return res.status(200).json({
           message: "Payment successful and credits updated.",
@@ -143,8 +146,8 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
         });
       } catch (dbError: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
         functions.logger.error(
-          `PayPal payment OK for ${orderID}, but DB update for ${userUID} FAIL:`,
-          dbError,
+          `PayPal payment OK for ${orderID}, DB update for ${userUID} FAIL:`,
+          dbError
         );
         return res.status(500).json({
           error: "Payment successful, but credit update failed. Contact support.",
@@ -153,7 +156,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       }
     } else {
       functions.logger.warn(
-        `PayPal capture status for order ${orderID} is ${captureData.status}.`,
+        `PayPal capture status for order ${orderID} is ${captureData.status}.`
       );
       return res.status(400).json({
         error: `Payment capture status: ${captureData.status}.`,
@@ -161,12 +164,14 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       });
     }
   } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-    functions.logger.error(`Failed to capture PayPal for ${orderID}:`, {
-      message: err.message,
-      statusCode: err.statusCode,
-      details: err.result ? err.result.details : "No details",
-      fullError: err,
-    });
+    const logMessage = `Failed to capture PayPal for ${orderID}:`;
+    const errorDetails = {
+        message: err.message,
+        statusCode: err.statusCode,
+        details: err.result ? err.result.details : "No details",
+        fullError: err,
+    };
+    functions.logger.error(logMessage, errorDetails);
 
     if (
       err.statusCode === 422 &&
@@ -174,7 +179,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
     ) {
       functions.logger.warn(
         `Instrument declined for order ${orderID}.`,
-        err.result.details,
+        err.result.details
       );
       return res.status(402).json({
         error: "Payment method declined by PayPal.",
