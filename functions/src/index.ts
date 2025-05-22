@@ -12,7 +12,8 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 // Use specific Request/Response types from Express
-import express, {Request, Response} from "express";
+import type {Request, Response} from "express";
+import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 
@@ -88,20 +89,15 @@ app.post("/create-order", async (req: Request, res: Response) => {
     functions.logger.info("PayPal order created successfully:", order.result);
     return res.status(200).json({orderID: order.result.id});
   } catch (err: any) { // eslint-disable-line  @typescript-eslint/no-explicit-any
-    functions.logger.error(
-      "Failed to create PayPal order:",
-      {
-        message: err.message,
-        statusCode: err.statusCode,
-        details: err.result ? err.result.details : "No details",
-        fullError: err,
-      }
-    );
+    functions.logger.error("Create order fail:", {
+      msg: err.message,
+      code: err.statusCode,
+      paypalDetails: err.result?.details || "N/A",
+    });
     const statusCode = err.statusCode || 500;
+    const errDesc = err.result?.details?.[0]?.description;
     const errorMessage =
-      err.result?.details?.[0]?.description || // PayPal specific error
-      err.message ||
-      "Failed to create PayPal order.";
+      errDesc || err.message || "Create order failed.";
     return res.status(statusCode).json({error: errorMessage});
   }
 });
@@ -118,7 +114,9 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
     });
   }
 
+  // @ts-ignore
   const request = new checkoutNodeJssdk.orders.OrdersCaptureRequest(orderID);
+  // No requestBody needed for capture
 
   try {
     const capture = await paypalClient.execute(request);
@@ -163,12 +161,11 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       });
     }
   } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-    const logMessage = `Failed to capture PayPal for ${orderID}:`;
+    const logMessage = `Capture fail for ${orderID}:`;
     functions.logger.error(logMessage, {
-      message: err.message,
-      statusCode: err.statusCode,
-      details: err.result ? err.result.details : "No details",
-      fullError: err,
+      msg: err.message,
+      code: err.statusCode,
+      paypalDetails: err.result?.details || "N/A",
     });
 
     // Check for INSTRUMENT_DECLINED specifically
@@ -188,10 +185,9 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
     }
 
     const statusCode = err.statusCode || 500;
+    const errDetails = err.result?.details?.[0]?.description;
     const errorMessage =
-      err.result?.details?.[0]?.description ||
-      err.message ||
-      "Failed to capture PayPal payment.";
+      errDetails || err.message || "Capture payment failed.";
     return res.status(statusCode).json({
       error: errorMessage,
     });
@@ -209,6 +205,3 @@ export const helloWorld = functions.https.onRequest((
   functions.logger.info("Hello logs!", {structuredData: true});
   response.send("Hello from simplified Firebase!");
 });
-
-
-
