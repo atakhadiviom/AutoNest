@@ -1,15 +1,20 @@
+/**
+ * Import function triggers from their respective submodules:
+ *
+ * import {onCall} from "firebase-functions/v2/https";
+ * import {onDocumentWritten} from "firebase-functions/v2/firestore";
+ *
+ * See a full list of supported triggers at https://firebase.google.com/docs/functions
+ */
 
 // Firebase and basic imports
 import * as functions from "firebase-functions";
-import * as admin from "firebase-admin";
+import *אל admin from "firebase-admin";
 import type {Request, Response} from "express"; // Explicit imports
 import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
-
-// PayPal SDK - using import for ES6 style, compatible with esModuleInterop
-import * as checkoutNodeJssdk from "@paypal/checkout-server-sdk";
-import paypalClient from "./paypalClient"; // Corrected path
+import * as logger from "firebase-functions/logger";
 
 // Initialize Firebase Admin SDK
 // Ensure service account is available or use App Default Credentials.
@@ -24,13 +29,67 @@ const app = express();
 app.use(cors({origin: true})); // Enable CORS for all origins
 app.use(bodyParser.json());
 
-// ======== PAYPAL ORDER CREATION ROUTE ========
-app.post("/create-order", async (req: Request, res: Response) => {
-  functions.logger.info(
-    "Received /create-order request:",
-    req.body,
-  );
 
+// --- PayPal Direct REST API Integration ---
+
+const getPaypalApiBaseUrl = (): string => {
+  const environment = functions.config().paypal?.environment ||
+    process.env.PAYPAL_ENVIRONMENT;
+  if (environment && environment.toLowerCase() === "live") {
+    return "https://api-m.paypal.com";
+  }
+  return "https://api-m.sandbox.paypal.com";
+};
+
+const getPaypalAccessToken = async (): Promise<string> => {
+  const clientId = functions.config().paypal?.client_id ||
+    process.env.PAYPAL_CLIENT_ID;
+  const clientSecret = functions.config().paypal?.client_secret ||
+    process.env.PAYPAL_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    logger.error(
+      "PayPal REST API: Client ID or Secret Key is missing in config.",
+    );
+    throw new Error("PayPal client credentials not configured.");
+  }
+
+  const auth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+  const tokenUrl = `${getPaypalApiBaseUrl()}/v1/oauth2/token`;
+
+  try {
+    const response = await fetch(tokenUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": `Basic ${auth}`,
+      },
+      body: "grant_type=client_credentials",
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      logger.error("PayPal Auth Error:", {
+        status: response.status,
+        data: errorData,
+      });
+      throw new Error(
+        `PayPal token request failed: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    const data: { access_token: string } = await response.json();
+    return data.access_token;
+  } catch (error) {
+    logger.error("Error fetching PayPal access token:", error);
+    throw error; // Re-throw to be caught by endpoint handler
+  }
+};
+
+
+// ======== PAYPAL ORDER CREATION ROUTE (REST API) ========
+app.post("/create-order", async (req: Request, res: Response) => {
+  logger.info("Received /create-order request (REST API):", req.body);
   const {dollarAmount, creditsToPurchase} = req.body;
 
   if (
@@ -39,176 +98,173 @@ app.post("/create-order", async (req: Request, res: Response) => {
     creditsToPurchase === undefined ||
     typeof creditsToPurchase !== "number"
   ) {
-    functions.logger.error(
-      "Invalid input for /create-order:",
-      req.body,
-    );
+    logger.error("Invalid input for /create-order (REST API):", req.body);
     return res.status(400).json({
       error: "Invalid input. Missing dollarAmount or creditsToPurchase.",
     });
   }
 
-  const request = new checkoutNodeJssdk.orders.OrdersCreateRequest();
-  request.prefer("return=representation");
-  request.requestBody({
-    intent: "CAPTURE",
-    purchase_units: [{
-      amount: {
-        currency_code: "USD",
-        value: dollarAmount, // The total amount for the purchase
-        breakdown: {
-          item_total: { // Required if items are specified
+  try {
+    const accessToken = await getPaypalAccessToken();
+    const orderApiUrl = `${getPaypalApiBaseUrl()}/v2/checkout/orders`;
+
+    const orderPayload = {
+      intent: "CAPTURE",
+      purchase_units: [{
+        amount: {
+          currency_code: "USD",
+          value: dollarAmount,
+          breakdown: {
+            item_total: {
+              currency_code: "USD",
+              value: dollarAmount,
+            },
+          },
+        },
+        description: `${creditsToPurchase} App Credits Purchase`,
+        items: [{
+          name: "App Credits",
+          unit_amount: {
             currency_code: "USD",
             value: dollarAmount,
           },
-        },
-      },
-      description: `${creditsToPurchase} App Credits Purchase`,
-      items: [{
-        name: "App Credits",
-        unit_amount: {
-          currency_code: "USD",
-          value: dollarAmount, // Price per unit
-        },
-        quantity: "1", // Buying 1 "pack" of credits
-        description: `${creditsToPurchase} credits for AutoNest app.`,
-        sku: `AUTONEST-CREDITS-${creditsToPurchase}`, // Optional SKU
+          quantity: "1",
+          description: `${creditsToPurchase} credits for AutoNest app.`,
+          sku: `AUTONEST-CREDITS-${creditsToPurchase}`,
+        }],
       }],
-    }],
-  });
-
-  try {
-    const order = await paypalClient.execute(request);
-    functions.logger.info(
-      "PayPal order created successfully:",
-      order.result,
-    );
-    return res.status(200).json({orderID: order.result.id});
-  } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-    const statusCode = err.statusCode || 500;
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-    const errDesc = err.result?.details?.[0]?.description;
-    const errorMessage = errDesc || err.message || "Create order failed.";
-    const logObject = {
-      message: err.message,
-      statusCode: statusCode,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-      details: err.result?.details || "No details",
     };
-    functions.logger.error(
-      "PayPal order creation failed:",
-      logObject,
+
+    const response = await fetch(orderApiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(orderPayload),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok || !responseData.id) {
+      logger.error("PayPal order creation failed (REST API):", {
+        status: response.status,
+        paypalResponse: responseData,
+      });
+      return res.status(response.status || 500).json({
+        error: responseData.message || "Failed to create PayPal order.",
+        details: responseData.details,
+      });
+    }
+
+    logger.info(
+      "PayPal order created successfully (REST API):",
+      {orderID: responseData.id},
     );
-    return res.status(statusCode).json({
-      error: errorMessage,
+    return res.status(200).json({orderID: responseData.id});
+  } catch (err: any) {
+    logger.error("PayPal order creation exception (REST API):", {
+      message: err.message,
+      fullError: err,
+    });
+    return res.status(500).json({
+      error: err.message || "Server error during PayPal order creation.",
     });
   }
 });
 
-// ======== PAYPAL PAYMENT CAPTURE ROUTE ========
+// ======== PAYPAL PAYMENT CAPTURE ROUTE (REST API) ========
 app.post("/capture-payment", async (req: Request, res: Response) => {
-  functions.logger.info(
-    "Received /capture-payment request:",
-    req.body,
-  );
+  logger.info("Received /capture-payment request (REST API):", req.body);
   const {orderID, creditsToPurchase, userUID} = req.body;
 
   if (!orderID || creditsToPurchase === undefined || !userUID) {
-    functions.logger.error(
-      "Invalid input for /capture-payment:",
-      req.body,
-    );
+    logger.error("Invalid input for /capture-payment (REST API):", req.body);
     return res.status(400).json({
       error: "Invalid input. Missing orderID, creditsToPurchase, or userUID.",
     });
   }
 
-  const request = new checkoutNodeJssdk.orders.OrdersCaptureRequest(orderID);
-
   try {
-    const capture = await paypalClient.execute(request);
-    const captureData = capture.result;
-    functions.logger.info(
-      "PayPal payment captured successfully:",
+    const accessToken = await getPaypalAccessToken();
+    const captureApiUrl =
+      `${getPaypalApiBaseUrl()}/v2/checkout/orders/${orderID}/capture`;
+
+    const response = await fetch(captureApiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`,
+      },
+      // Capture API often doesn't need a body if created with intent: CAPTURE
+    });
+
+    const captureData = await response.json();
+
+    if (!response.ok) {
+      logger.error("PayPal payment capture failed (REST API):", {
+        status: response.status,
+        paypalResponse: captureData,
+        orderID,
+      });
+      // Check for specific issues like INSTRUMENT_DECLINED
+      const errorDetail = captureData.details?.[0];
+      if (errorDetail?.issue === "INSTRUMENT_DECLINED") {
+        return res.status(402).json({
+          error: "Payment method declined by PayPal.",
+          isInstrumentDeclined: true,
+          details: captureData.details,
+        });
+      }
+      return res.status(response.status || 500).json({
+        error: captureData.message || "Failed to capture PayPal payment.",
+        details: captureData.details,
+      });
+    }
+
+    logger.info(
+      "PayPal payment captured successfully (REST API):",
       captureData,
     );
 
     if (captureData.status === "COMPLETED") {
-      // Payment successful, update user credits in Firestore
       const userDocRef = db.collection("users").doc(userUID);
       try {
         await userDocRef.update({
           credits: admin.firestore.FieldValue.increment(creditsToPurchase),
         });
-        functions.logger.info(
-          `Successfully updated credits for user ${userUID}.`,
+        logger.info(
+          `Successfully updated credits for user ${userUID} via REST API.`,
         );
         return res.status(200).json({
           message: "Payment successful and credits updated.",
           captureData: captureData,
         });
-      } catch (dbError: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-        const logMsg = "PayPal payment OK, DB update for user credits FAIL:";
-        functions.logger.error(logMsg, {
-          orderID,
-          userUID,
-          error: dbError,
-        });
-        // Critical: Payment taken, credits not awarded. Implement retry/alert.
+      } catch (dbError: any) {
+        const logMsg =
+          "REST API: PayPal payment OK, DB update for user credits FAIL:";
+        logger.error(logMsg, {orderID, userUID, error: dbError});
         return res.status(500).json({
           error: "Payment successful, credit update failed. Contact support.",
           paypalOrderId: orderID,
         });
       }
     } else {
-      // Handle other capture statuses (e.g., PENDING) if necessary
-      const logMsg = `PayPal capture status for order ${orderID}`;
-      functions.logger.warn(`${logMsg} is ${captureData.status}.`);
+      const logMsg =
+        `REST API: PayPal capture status for order ${orderID}`;
+      logger.warn(`${logMsg} is ${captureData.status}.`);
       return res.status(400).json({
         error: `Payment capture status: ${captureData.status}.`,
         details: captureData,
       });
     }
-  } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-    const paypalDetails = err.result?.details || "N/A";
-
-    // Check for INSTRUMENT_DECLINED specifically
-    if (
-      err.statusCode === 422 &&
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      err.result?.details?.[0]?.issue === "INSTRUMENT_DECLINED"
-    ) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const instrumentErrorDetails = err.result.details;
-      functions.logger.warn(
-        `Instrument declined for order ${orderID}.`,
-        {details: instrumentErrorDetails},
-      );
-      const responsePayload = {
-        error: "PayPal: Instrument Declined.", // Shortened
-        isInstrumentDeclined: true,
-        details: instrumentErrorDetails,
-      };
-      return res.status(402).json(responsePayload);
-    }
-
-    const errorLogDetails = {
-      message: err.message,
-      statusCode: err.statusCode,
-      paypalAPIDetails: paypalDetails,
-    };
-    functions.logger.error(
-      `Capture failed for ${orderID}. Details:`,
-      errorLogDetails,
+  } catch (err: any) {
+    logger.error(
+      `REST API: Failed to capture PayPal for ${orderID}:`,
+      {message: err.message, fullError: err},
     );
-
-    const statusCode = err.statusCode || 500;
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-    const errDetails = err.result?.details?.[0]?.description;
-    const errorMessage = errDetails || err.message || "Capture payment failed.";
-    return res.status(statusCode).json({
-      error: errorMessage,
+    return res.status(500).json({
+      error: err.message || "Server error during PayPal payment capture.",
     });
   }
 });
@@ -216,11 +272,11 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
 // Expose Express API as a single Cloud Function:
 export const paypalAPI = functions.https.onRequest(app);
 
-// Extremely simplified helloWorld function for testing deployment
-export const helloWorld = functions.https.onRequest((
-  _req: Request,
-  response: Response,
-) => {
-  functions.logger.info("Hello logs!", {structuredData: true});
-  response.send("Hello from simplified Firebase!");
-});
+
+// --- Original helloWorld for testing deployment ---
+export const helloWorld = functions.https.onRequest(
+  (request: Request, response: Response) => {
+    logger.info("Hello logs!", {structuredData: true});
+    response.send("Hello from simplified Firebase!");
+  },
+);
