@@ -1,47 +1,38 @@
 /**
- * Firebase Cloud Functions for PayPal REST API integration.
+ * Firebase Cloud Functions for Autonest.
+ *
+ * This file defines HTTP-triggered functions.
+ * The paypalAPI function is currently a placeholder.
+ * For production, it would handle PayPal REST API calls securely.
+ * Ensure Firebase project billing is active for deployment.
  */
 import * as functions from "firebase-functions";
-// import * as admin from "firebase-admin"; // Temporarily removed for simplification
-// import express from "express"; // Temporarily removed for simplification
-// import cors from "cors"; // Temporarily removed for simplification
-// import bodyParser from "body-parser"; // Temporarily removed for simplification
-// import paypalClient from "./paypalClient"; // Temporarily removed for simplification
-// import paypal from "@paypal/checkout-server-sdk"; // Temporarily removed for simplification
+// import * as admin from "firebase-admin"; // Not used in this simplified version
+// import express from "express"; // Not used in this simplified version
+// import cors from "cors"; // Not used in this simplified version
+// import bodyParser from "body-parser"; // Not used in this simplified version
+// import paypalClient from "./paypalClient"; // Not used
+// import paypal from "@paypal/checkout-server-sdk"; // Not used
 
-// Initialize Firebase Admin SDK if not already initialized
-// This will use Application Default Credentials when deployed to Firebase.
+// Initialize Firebase Admin SDK if not already initialized.
+// This uses Application Default Credentials when deployed.
 // if (admin.apps.length === 0) {
 //   admin.initializeApp();
 // }
 // const db = admin.firestore();
 
 // const app = express();
-
-// Middleware
 // app.use(cors({origin: true}));
 // app.use(bodyParser.json());
 
-// ---- Simplified PayPal API for testing deployment ----
-// If this deploys, the issue is within the more complex PayPal logic.
-// If this still fails, the issue is project/environment configuration.
+// Simplified paypalAPI for testing deployment.
+// If this deploys, the issue is not project/env config
+// for basic function creation.
 export const paypalAPI = functions.https.onRequest((request, response) => {
   functions.logger.info("Simplified paypalAPI called!", {structuredData: true});
   response.send("Simplified paypalAPI response!");
 });
 
-// ---- PayPal Create Order Endpoint ----
-// app.post("/create-order", async (req, res) => {
-//   // ... (original create-order logic commented out)
-// });
-
-// ---- PayPal Capture Payment Endpoint ----
-// app.post("/capture-payment", async (req, res) => {
-//   // ... (original capture-payment logic commented out)
-// });
-
-// Expose Express API as a single Cloud Function
-// export const paypalAPI = functions.https.onRequest(app);
 
 // --- Placeholder for other functions ---
 export const helloWorld = functions.https.onRequest((request, response) => {
