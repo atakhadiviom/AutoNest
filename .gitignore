@@ -1,58 +1,59 @@
-
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# Dependencies
+# Firebase
+.firebase
+firebase-debug.log
+firebase-debug.*.log
+*.local
+
+# dependencies
 /node_modules
 /.pnp
 .pnp.js
+/functions/node_modules
 
-# Testing
+# testing
 /coverage
 
-# Next.js
+# next.js
 /.next/
 /out/
 
-# Production
+# production
 /build
 
-# Dotenv environment variables file
-.env
-.env*.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Misc
+# misc
 .DS_Store
 *.pem
 
-# Debug log from npm
+# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
 
-# Editor directories and files
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-.idea
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+# local env files
+.env
+.env*.local
+!.env.sample
+/functions/.env
 
-# Firebase
-firebase-debug.log
-*.firebase.*
-database-debug.log
-firestore-debug.log
-firebase.json # If you use firebase CLI for hosting/functions, you might want to commit this
-# However, if it contains sensitive project IDs directly and you prefer env vars, keep it ignored.
+# vercel
+.vercel
 
-# Turborepo
-.turbo
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# PayPal SDK
+paypal-checkout.js
+
+# Sensitive files & Outputs
+*.log
+*secret*.json
+*private_key*.json
+*service_account*.json
+autonest-vn4w5-firebase-adminsdk-fbsvc-96861eb71c.json # Explicitly ignore this specific service account key
+*.p12
+*.key
+*.sublime-project
+*.sublime-workspace
