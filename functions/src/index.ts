@@ -1,34 +1,7 @@
 
 import * as functions from "firebase-functions";
-import *emote: This repository moved. Please use the new location:        
-remote:   https://github.com/atakhadiviom/AutoNest.git        
-remote: error: GH013: Repository rule violations found for refs/heads/master.        
-remote: 
-remote: - GITHUB PUSH PROTECTION        
-remote:   —————————————————————————————————————————        
-remote:     Resolve the following violations before pushing again        
-remote: 
-remote:     - Push cannot contain secrets        
-remote: 
-remote:             
-remote:      (?) Learn how to resolve a blocked push        
-remote:      https://docs.github.com/code-security/secret-scanning/working-with-secret-scanning-and-push-protection/working-with-push-protection-from-the-command-line#resolving-a-blocked-push        
-remote:             
-remote:             
-remote:       —— Google Cloud Service Account Credentials ——————————        
-remote:        locations:        
-remote:          - commit: feee4cf0a8617dbe7d071bf65d25b18200b5c4b6        
-remote:            path: autonest-vn4w5-firebase-adminsdk-fbsvc-96861eb71c.json:1        
-remote:             
-remote:        (?) To push, remove secret from commit(s) or follow this URL to allow the secret.        
-remote:        https://github.com/atakhadiviom/AutoNest/security/secret-scanning/unblock-secret/2xS4jIXPQ0Wf5gulYM6trVguZzQ        
-remote:             
-remote: 
-remote: 
-To https://github.com/atakhadiviom/AutoaNest.git
- ! [remote rejected] master -> master (push declined due to repository rule violations)
-error: failed to push some refs to 'https://github.com/atakhadiviom/AutoaNest.git'import * as admin from "firebase-admin";
-import express from "express";
+import * as admin from "firebase-admin";
+import express, {Request, Response} from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 import paypalClient from "./paypalClient";
@@ -53,7 +26,7 @@ app.use(bodyParser.json());
 
 
 // ======== PAYPAL ORDER CREATION ROUTE ========
-app.post("/create-order", async (req, res) => {
+app.post("/create-order", async (req: Request, res: Response) => {
   functions.logger.info("Received /create-order request:", req.body);
 
   const {dollarAmount, creditsToPurchase} = req.body;
@@ -117,7 +90,7 @@ app.post("/create-order", async (req, res) => {
 });
 
 // ======== PAYPAL PAYMENT CAPTURE ROUTE ========
-app.post("/capture-payment", async (req, res) => {
+app.post("/capture-payment", async (req: Request, res: Response) => {
   functions.logger.info("Received /capture-payment request:", req.body);
   const {orderID, creditsToPurchase, userUID} = req.body;
 
@@ -131,6 +104,7 @@ app.post("/capture-payment", async (req, res) => {
   }
 
   const request = new checkoutNodeJssdk.orders.OrdersCaptureRequest(orderID);
+  // Removed request.requestBody = {}; as it's not typically needed for capture
 
   try {
     const capture = await paypalClient.execute(request);
@@ -207,7 +181,9 @@ app.post("/capture-payment", async (req, res) => {
 export const paypalAPI = functions.https.onRequest(app);
 
 // Extremely simplified helloWorld function for testing deployment
-export const helloWorld = functions.https.onRequest((request, response) => {
+export const helloWorld = functions.https.onRequest((
+  request: Request, response: Response,
+) => {
   functions.logger.info("Hello logs!", {structuredData: true});
   response.send("Hello from simplified Firebase!");
 });
