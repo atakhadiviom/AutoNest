@@ -119,7 +119,6 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
   }
 
   const request = new checkoutNodeJssdk.orders.OrdersCaptureRequest(orderID);
-  // No requestBody is needed for capture with this SDK version.
 
   try {
     const capture = await paypalClient.execute(request);
@@ -165,13 +164,12 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
     }
   } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
     const logMessage = `Failed to capture PayPal for ${orderID}:`;
-    const errorDetails = {
-        message: err.message,
-        statusCode: err.statusCode,
-        details: err.result ? err.result.details : "No details",
-        fullError: err,
-    };
-    functions.logger.error(logMessage, errorDetails);
+    functions.logger.error(logMessage, {
+      message: err.message,
+      statusCode: err.statusCode,
+      details: err.result ? err.result.details : "No details",
+      fullError: err,
+    });
 
     // Check for INSTRUMENT_DECLINED specifically
     if (
@@ -182,7 +180,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
         `Instrument declined for order ${orderID}. Details:`,
         err.result.details
       );
-      return res.status(402).json({ // 402 Payment Required (but declined)
+      return res.status(402).json({ // 402 Payment Required
         error: "Payment method declined by PayPal.",
         isInstrumentDeclined: true,
         details: err.result.details,
@@ -194,7 +192,9 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       err.result?.details?.[0]?.description ||
       err.message ||
       "Failed to capture PayPal payment.";
-    return res.status(statusCode).json({error: errorMessage});
+    return res.status(statusCode).json({
+      error: errorMessage,
+    });
   }
 });
 
@@ -209,5 +209,6 @@ export const helloWorld = functions.https.onRequest((
   functions.logger.info("Hello logs!", {structuredData: true});
   response.send("Hello from simplified Firebase!");
 });
+
 
 
