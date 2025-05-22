@@ -8,11 +8,11 @@ import paypalClient from "./paypalClient";
 // Correctly import the necessary type from the SDK.
 // Note: The SDK might not export all internal types directly.
 // We use `orders.OrdersCreateRequest` and `orders.OrdersCaptureRequest`.
-// This import ensures Firebase Admin SDK is initialized.
 import * as checkoutNodeJssdk from "@paypal/checkout-server-sdk";
 
+
 // Initialize Firebase Admin SDK
-// Ensure your service account is available or use Application Default Credentials.
+// Ensure service account is available or use App Default Credentials.
 if (!admin.apps.length) {
   admin.initializeApp();
 }
@@ -104,7 +104,6 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
   }
 
   const request = new checkoutNodeJssdk.orders.OrdersCaptureRequest(orderID);
-  // request.requestBody = {}; // Typically not needed for capture
 
   try {
     const capture = await paypalClient.execute(request);
