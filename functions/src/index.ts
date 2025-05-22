@@ -11,10 +11,7 @@
 // Firebase and basic imports
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-// import {onRequest} from "firebase-functions/v2/https"; // Keep for future
-// import * as logger from "firebase-functions/logger"; // Keep for future
-
-// Express for API routing
+// Use specific Request/Response types from Express
 import express, {Request, Response} from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
@@ -64,24 +61,24 @@ app.post("/create-order", async (req: Request, res: Response) => {
     purchase_units: [{
       amount: {
         currency_code: "USD",
-        value: dollarAmount,
+        value: dollarAmount, // The total amount for the purchase
         breakdown: {
-          item_total: {
+          item_total: { // Required if items are specified
             currency_code: "USD",
             value: dollarAmount,
           },
         },
       },
       description: `${creditsToPurchase} App Credits Purchase`,
-      items: [{
+      items: [{ // Optional, but good for itemization on PayPal's side
         name: "App Credits",
         unit_amount: {
           currency_code: "USD",
-          value: dollarAmount,
+          value: dollarAmount, // Price per unit
         },
-        quantity: "1",
+        quantity: "1", // Buying 1 "pack" of credits
         description: `${creditsToPurchase} credits for AutoNest app.`,
-        sku: `AUTONEST-CREDITS-${creditsToPurchase}`,
+        sku: `AUTONEST-CREDITS-${creditsToPurchase}`, // Optional SKU
       }],
     }],
   });
@@ -102,7 +99,7 @@ app.post("/create-order", async (req: Request, res: Response) => {
     );
     const statusCode = err.statusCode || 500;
     const errorMessage =
-      err.result?.details?.[0]?.description ||
+      err.result?.details?.[0]?.description || // PayPal specific error
       err.message ||
       "Failed to create PayPal order.";
     return res.status(statusCode).json({error: errorMessage});
@@ -132,6 +129,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
     );
 
     if (captureData.status === "COMPLETED") {
+      // Payment successful, update user credits in Firestore
       const userDocRef = db.collection("users").doc(userUID);
       try {
         await userDocRef.update({
@@ -149,12 +147,14 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
           `PayPal payment OK for ${orderID}, DB update for ${userUID} FAIL:`,
           dbError
         );
+        // Critical: Payment taken, credits not awarded. Implement retry/alert.
         return res.status(500).json({
           error: "Payment successful, but credit update failed. Contact support.",
-          paypalOrderId: orderID,
+          paypalOrderId: orderID, // Return orderID for reconciliation
         });
       }
     } else {
+      // Handle other capture statuses (e.g., PENDING) if necessary
       functions.logger.warn(
         `PayPal capture status for order ${orderID} is ${captureData.status}.`
       );
@@ -173,6 +173,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
     };
     functions.logger.error(logMessage, errorDetails);
 
+    // Check for INSTRUMENT_DECLINED specifically
     if (
       err.statusCode === 422 &&
       err.result?.details?.[0]?.issue === "INSTRUMENT_DECLINED"
@@ -181,7 +182,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
         `Instrument declined for order ${orderID}. Details:`,
         err.result.details
       );
-      return res.status(402).json({
+      return res.status(402).json({ // 402 Payment Required (but declined)
         error: "Payment method declined by PayPal.",
         isInstrumentDeclined: true,
         details: err.result.details,
@@ -208,4 +209,5 @@ export const helloWorld = functions.https.onRequest((
   functions.logger.info("Hello logs!", {structuredData: true});
   response.send("Hello from simplified Firebase!");
 });
+
 
