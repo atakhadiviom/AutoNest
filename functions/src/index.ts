@@ -161,15 +161,17 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       });
     }
   } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-    const logMessage = `Failed to capture PayPal for ${orderID}:`;
     const paypalDetails = err.result?.details || "N/A";
 
-    functions.logger.error(logMessage, {
-      message: err.message,
-      statusCode: err.statusCode,
-      details: paypalDetails,
-      fullError: err,
-    });
+    functions.logger.error(
+      `Failed to capture PayPal for order ${orderID}:`,
+      {
+        message: err.message,
+        statusCode: err.statusCode,
+        details: paypalDetails,
+        fullError: err,
+      }
+    );
 
     // Check for INSTRUMENT_DECLINED specifically
     if (
