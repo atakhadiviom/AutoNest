@@ -25,7 +25,7 @@ if (!clientId || !clientSecret || !environmentConfig) {
     "'firebase functions:config:set paypal.client_secret=...' \n" +
     "'firebase functions:config:set paypal.environment=...' \n" +
     "For LOCAL EMULATION, ensure your functions/.env file is correctly set " +
-    "with PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, and PAYPAL_ENVIRONMENT.";
+    "with CLIENT_ID, SECRET, and ENVIRONMENT."; // Shortened this line
   console.error(errorMessage);
   throw new Error(errorMessage);
 }
