@@ -1,17 +1,10 @@
-# Node
-node_modules
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-*.env
-*.env.*
-!*.env.sample
+# Compiled JavaScript files
+lib/**/*.js
+lib/**/*.js.map
 
-# Firebase
-coverage
-firebase-debug.log
-firebase-debug.*.log
-*.sqlite
+# TypeScript v1 declaration files
+typings/
 
-# Build output
-lib/
+# Node.js dependency directory
+node_modules/
+*.local
