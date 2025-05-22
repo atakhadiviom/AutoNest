@@ -5,14 +5,14 @@ import express, {Request, Response} from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 import paypalClient from "./paypalClient";
-// Correctly import the necessary type from the SDK
+// Correctly import the necessary type from the SDK.
 // Note: The SDK might not export all internal types directly.
-// We primarily use `orders.OrdersCreateRequest` and `orders.OrdersCaptureRequest`.
+// We use `orders.OrdersCreateRequest` and `orders.OrdersCaptureRequest`.
+// This import ensures Firebase Admin SDK is initialized.
 import * as checkoutNodeJssdk from "@paypal/checkout-server-sdk";
 
 // Initialize Firebase Admin SDK
-// Ensure your service account is available in the environment
-// or use Application Default Credentials.
+// Ensure your service account is available or use Application Default Credentials.
 if (!admin.apps.length) {
   admin.initializeApp();
 }
@@ -104,7 +104,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
   }
 
   const request = new checkoutNodeJssdk.orders.OrdersCaptureRequest(orderID);
-  // Removed request.requestBody = {}; as it's not typically needed for capture
+  // request.requestBody = {}; // Typically not needed for capture
 
   try {
     const capture = await paypalClient.execute(request);
@@ -114,7 +114,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
     );
 
     if (captureData.status === "COMPLETED") {
-      // Payment is successful, update user credits in Firestore
+      // Payment successful, update user credits in Firestore
       const userDocRef = db.collection("users").doc(userUID);
       try {
         await userDocRef.update({
@@ -132,8 +132,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
           `PayPal payment captured for order ${orderID}, ` +
           `but failed to update credits for user ${userUID}:`, dbError
         );
-        // Critical: Payment taken, but credits not awarded.
-        // Implement retry logic or manual intervention alert.
+        // Critical: Payment taken, credits not awarded. Implement retry/alert.
         return res.status(500).json({
           error: "Payment successful, but credit update failed. " +
                  "Please contact support.",
@@ -151,7 +150,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       });
     }
   } catch (err: any) {
-    functions.logger.error(`Failed to capture PayPal payment for ${orderID}:`, {
+    functions.logger.error(`Failed to capture PayPal for ${orderID}:`, {
       message: err.message,
       statusCode: err.statusCode,
       details: err.result ? err.result.details : "No details",
@@ -159,9 +158,8 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
     });
 
     // Check for INSTRUMENT_DECLINED specifically
-    if (err.statusCode === 422 && err.result && err.result.details &&
-        err.result.details[0] &&
-        err.result.details[0].issue === "INSTRUMENT_DECLINED") {
+    if (err.statusCode === 422 && err.result?.details?.[0]?.issue ===
+        "INSTRUMENT_DECLINED") {
       return res.status(402).json({ // 402 Payment Required
         error: "Payment method declined by PayPal.",
         isInstrumentDeclined: true,
@@ -182,7 +180,7 @@ export const paypalAPI = functions.https.onRequest(app);
 
 // Extremely simplified helloWorld function for testing deployment
 export const helloWorld = functions.https.onRequest((
-  request: Request, response: Response,
+  _req: Request, response: Response,
 ) => {
   functions.logger.info("Hello logs!", {structuredData: true});
   response.send("Hello from simplified Firebase!");
