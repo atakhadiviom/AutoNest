@@ -8,8 +8,7 @@ import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 
-// PayPal
-// Correctly import the necessary type from the SDK.
+// PayPal SDK
 import * as checkoutNodeJssdk from "@paypal/checkout-server-sdk";
 import paypalClient from "./paypalClient";
 
@@ -160,17 +159,16 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       err.statusCode === 422 &&
       err.result?.details?.[0]?.issue === "INSTRUMENT_DECLINED"
     ) {
+      const instrumentErrorDetails = err.result.details;
       functions.logger.warn(
         `Instrument declined for order ${orderID}.`,
-        {details: err.result.details},
+        {details: instrumentErrorDetails}
       );
-      return res.status(402).json(
-        {
-          error: "Payment method declined by PayPal.",
-          isInstrumentDeclined: true,
-          details: err.result.details,
-        }
-      );
+      return res.status(402).json({
+        error: "Payment method declined by PayPal.",
+        isInstrumentDeclined: true,
+        details: instrumentErrorDetails,
+      });
     }
 
     const errorLogDetails = {
