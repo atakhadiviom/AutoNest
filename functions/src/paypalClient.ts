@@ -18,14 +18,14 @@ const environmentConfig = functions.config().paypal?.environment ||
                           process.env.PAYPAL_ENVIRONMENT;
 
 if (!clientId || !clientSecret || !environmentConfig) {
-  const errorMessage = "PayPal client ID, client secret, or environment " +
-    "is not configured. \n" +
-    "For DEPLOYED functions, ensure you have set these using the Firebase CLI: \n" +
-    "'firebase functions:config:set paypal.client_id=...' \n" +
-    "'firebase functions:config:set paypal.client_secret=...' \n" +
-    "'firebase functions:config:set paypal.environment=...' \n" +
-    "For LOCAL EMULATION, ensure your functions/.env file is correctly set " +
-    "with CLIENT_ID, SECRET, and ENVIRONMENT."; // Shortened this line
+  // Reformatting errorMessage using a template literal
+  const errorMessage = `PayPal client ID, client secret, or environment not configured.
+For DEPLOYED functions, ensure you have set these using the Firebase CLI:
+  'firebase functions:config:set paypal.client_id=...'
+  'firebase functions:config:set paypal.client_secret=...'
+  'firebase functions:config:set paypal.environment=...'
+For LOCAL EMULATION, ensure your functions/.env file is correctly set
+with CLIENT_ID, SECRET, and ENVIRONMENT.`;
   console.error(errorMessage);
   throw new Error(errorMessage);
 }
