@@ -178,7 +178,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       err.result?.details?.[0]?.issue === "INSTRUMENT_DECLINED"
     ) {
       functions.logger.warn(
-        `Instrument declined for order ${orderID}.`,
+        `Instrument declined for order ${orderID}. Details:`,
         err.result.details
       );
       return res.status(402).json({
@@ -208,3 +208,4 @@ export const helloWorld = functions.https.onRequest((
   functions.logger.info("Hello logs!", {structuredData: true});
   response.send("Hello from simplified Firebase!");
 });
+
