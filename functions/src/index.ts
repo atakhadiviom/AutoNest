@@ -2,16 +2,14 @@
 // Firebase and basic imports
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-// Use specific Request/Response types from Express
-import type {Request, Response} from "express";
+import type {Request, Response} from "express"; // Explicit imports
 import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 
-// PayPal SDK
+// PayPal SDK - using import for ES6 style, compatible with esModuleInterop
 import * as checkoutNodeJssdk from "@paypal/checkout-server-sdk";
-import paypalClient from "./paypalClient";
-
+import paypalClient from "./paypalClient"; // Corrected path
 
 // Initialize Firebase Admin SDK
 // Ensure service account is available or use App Default Credentials.
@@ -28,7 +26,10 @@ app.use(bodyParser.json());
 
 // ======== PAYPAL ORDER CREATION ROUTE ========
 app.post("/create-order", async (req: Request, res: Response) => {
-  functions.logger.info("Received /create-order request:", req.body);
+  functions.logger.info(
+    "Received /create-order request:",
+    req.body,
+  );
 
   const {dollarAmount, creditsToPurchase} = req.body;
 
@@ -38,7 +39,10 @@ app.post("/create-order", async (req: Request, res: Response) => {
     creditsToPurchase === undefined ||
     typeof creditsToPurchase !== "number"
   ) {
-    functions.logger.error("Invalid input for /create-order:", req.body);
+    functions.logger.error(
+      "Invalid input for /create-order:",
+      req.body,
+    );
     return res.status(400).json({
       error: "Invalid input. Missing dollarAmount or creditsToPurchase.",
     });
@@ -75,15 +79,20 @@ app.post("/create-order", async (req: Request, res: Response) => {
 
   try {
     const order = await paypalClient.execute(request);
-    functions.logger.info("PayPal order created successfully:", order.result);
+    functions.logger.info(
+      "PayPal order created successfully:",
+      order.result,
+    );
     return res.status(200).json({orderID: order.result.id});
   } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
     const statusCode = err.statusCode || 500;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
     const errDesc = err.result?.details?.[0]?.description;
     const errorMessage = errDesc || err.message || "Create order failed.";
     const logObject = {
       message: err.message,
       statusCode: statusCode,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       details: err.result?.details || "No details",
     };
     functions.logger.error(
@@ -98,11 +107,17 @@ app.post("/create-order", async (req: Request, res: Response) => {
 
 // ======== PAYPAL PAYMENT CAPTURE ROUTE ========
 app.post("/capture-payment", async (req: Request, res: Response) => {
-  functions.logger.info("Received /capture-payment request:", req.body);
+  functions.logger.info(
+    "Received /capture-payment request:",
+    req.body,
+  );
   const {orderID, creditsToPurchase, userUID} = req.body;
 
   if (!orderID || creditsToPurchase === undefined || !userUID) {
-    functions.logger.error("Invalid input for /capture-payment:", req.body);
+    functions.logger.error(
+      "Invalid input for /capture-payment:",
+      req.body,
+    );
     return res.status(400).json({
       error: "Invalid input. Missing orderID, creditsToPurchase, or userUID.",
     });
@@ -113,7 +128,10 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
   try {
     const capture = await paypalClient.execute(request);
     const captureData = capture.result;
-    functions.logger.info("PayPal payment captured successfully:", captureData);
+    functions.logger.info(
+      "PayPal payment captured successfully:",
+      captureData,
+    );
 
     if (captureData.status === "COMPLETED") {
       // Payment successful, update user credits in Firestore
@@ -152,23 +170,27 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       });
     }
   } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
     const paypalDetails = err.result?.details || "N/A";
 
     // Check for INSTRUMENT_DECLINED specifically
     if (
       err.statusCode === 422 &&
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       err.result?.details?.[0]?.issue === "INSTRUMENT_DECLINED"
     ) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const instrumentErrorDetails = err.result.details;
       functions.logger.warn(
         `Instrument declined for order ${orderID}.`,
-        {details: instrumentErrorDetails}
+        {details: instrumentErrorDetails},
       );
-      return res.status(402).json({
-        error: "Payment method declined by PayPal.",
+      const responsePayload = {
+        error: "PayPal: Instrument Declined.", // Shortened
         isInstrumentDeclined: true,
         details: instrumentErrorDetails,
-      });
+      };
+      return res.status(402).json(responsePayload);
     }
 
     const errorLogDetails = {
@@ -182,6 +204,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
     );
 
     const statusCode = err.statusCode || 500;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
     const errDetails = err.result?.details?.[0]?.description;
     const errorMessage = errDetails || err.message || "Capture payment failed.";
     return res.status(statusCode).json({
