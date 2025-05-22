@@ -87,7 +87,10 @@ app.post("/create-order", async (req: Request, res: Response) => {
       statusCode: statusCode,
       details: err.result?.details || "No details",
     };
-    functions.logger.error("PayPal order creation failed:", logObject);
+    functions.logger.error(
+      "PayPal order creation failed:",
+      logObject,
+    );
     return res.status(statusCode).json({
       error: errorMessage,
     });
@@ -121,7 +124,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
           credits: admin.firestore.FieldValue.increment(creditsToPurchase),
         });
         functions.logger.info(
-          `Successfully updated credits for user ${userUID}.`
+          `Successfully updated credits for user ${userUID}.`,
         );
         return res.status(200).json({
           message: "Payment successful and credits updated.",
@@ -159,13 +162,15 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
     ) {
       functions.logger.warn(
         `Instrument declined for order ${orderID}.`,
-        {details: err.result.details}
+        {details: err.result.details},
       );
-      return res.status(402).json({
-        error: "Payment method declined by PayPal.",
-        isInstrumentDeclined: true,
-        details: err.result.details,
-      });
+      return res.status(402).json(
+        {
+          error: "Payment method declined by PayPal.",
+          isInstrumentDeclined: true,
+          details: err.result.details,
+        }
+      );
     }
 
     const errorLogDetails = {
@@ -175,7 +180,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
     };
     functions.logger.error(
       `Capture failed for ${orderID}. Details:`,
-      errorLogDetails
+      errorLogDetails,
     );
 
     const statusCode = err.statusCode || 500;
