@@ -9,9 +9,10 @@ import cors from "cors";
 import bodyParser from "body-parser";
 
 // PayPal
-import paypalClient from "./paypalClient";
-// Use a namespace import for PayPal SDK for robust compatibility
+// Correctly import the necessary type from the SDK.
 import * as checkoutNodeJssdk from "@paypal/checkout-server-sdk";
+import paypalClient from "./paypalClient";
+
 
 // Initialize Firebase Admin SDK
 // Ensure service account is available or use App Default Credentials.
@@ -150,15 +151,6 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
     }
   } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
     const paypalDetails = err.result?.details || "N/A";
-    const errorLogDetails = {
-      message: err.message,
-      statusCode: err.statusCode,
-      paypalAPIDetails: paypalDetails, // Using a different key for clarity
-    };
-    functions.logger.error(
-      `Capture failed for ${orderID}. Details:`, // Shortened msg
-      errorLogDetails
-    );
 
     // Check for INSTRUMENT_DECLINED specifically
     if (
@@ -175,6 +167,16 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
         details: err.result.details,
       });
     }
+
+    const errorLogDetails = {
+      message: err.message,
+      statusCode: err.statusCode,
+      paypalAPIDetails: paypalDetails,
+    };
+    functions.logger.error(
+      `Capture failed for ${orderID}. Details:`,
+      errorLogDetails
+    );
 
     const statusCode = err.statusCode || 500;
     const errDetails = err.result?.details?.[0]?.description;
@@ -196,3 +198,5 @@ export const helloWorld = functions.https.onRequest((
   functions.logger.info("Hello logs!", {structuredData: true});
   response.send("Hello from simplified Firebase!");
 });
+
+// Ensure there's a single newline at the end of the file.
