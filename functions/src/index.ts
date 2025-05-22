@@ -68,7 +68,7 @@ app.post("/create-order", async (req: Request, res: Response) => {
           },
         },
       },
-      description: `${creditsToPurchase} AutoNest credits`,
+      description: `${creditsToPurchase} App Credits Purchase`,
       items: [{
         name: "App Credits",
         unit_amount: {
@@ -76,7 +76,7 @@ app.post("/create-order", async (req: Request, res: Response) => {
           value: dollarAmount, // Price per unit
         },
         quantity: "1", // Buying 1 "pack" of credits
-        description: `${creditsToPurchase} AutoNest credits`,
+        description: `${creditsToPurchase} credits for AutoNest app.`,
         sku: `AUTONEST-CREDITS-${creditsToPurchase}`, // Optional SKU
       }],
     }],
@@ -91,12 +91,12 @@ app.post("/create-order", async (req: Request, res: Response) => {
     const errDesc = err.result?.details?.[0]?.description;
     const errorMessage = errDesc || err.message || "Create order failed.";
     functions.logger.error(
-      "Create order fail:",
+      "Failed to create PayPal order:",
       {
         message: err.message,
         statusCode: statusCode,
         details: err.result?.details || "No details",
-        fullError: err,
+        fullError: err, // This can make the object very long
       }
     );
     return res.status(statusCode).json({
@@ -169,7 +169,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
         message: err.message,
         statusCode: err.statusCode,
         details: paypalDetails,
-        fullError: err,
+        // fullError: err, // Removing fullError to shorten log potentially
       }
     );
 
