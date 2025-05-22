@@ -11,8 +11,8 @@
 // Firebase and basic imports
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-// import {onRequest} from "firebase-functions/v2/https";
-// import * as logger from "firebase-functions/logger";
+// import {onRequest} from "firebase-functions/v2/https"; // Keep for future
+// import * as logger from "firebase-functions/logger"; // Keep for future
 
 // Express for API routing
 import express, {Request, Response} from "express";
@@ -119,7 +119,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
   }
 
   const request = new checkoutNodeJssdk.orders.OrdersCaptureRequest(orderID);
-  // No requestBody is needed for capture in most standard scenarios with this SDK version.
+  // No requestBody is needed for capture with this SDK version.
 
   try {
     const capture = await paypalClient.execute(request);
@@ -143,13 +143,11 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
         });
       } catch (dbError: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
         functions.logger.error(
-          `PayPal payment captured for order ${orderID}, ` +
-          `but failed to update credits for user ${userUID}:`,
+          `PayPal payment OK for ${orderID}, but DB update for ${userUID} FAIL:`,
           dbError,
         );
         return res.status(500).json({
-          error: "Payment successful, but credit update failed. " +
-                 "Please contact support.",
+          error: "Payment successful, but credit update failed. Contact support.",
           paypalOrderId: orderID,
         });
       }
