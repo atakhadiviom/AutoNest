@@ -67,7 +67,7 @@ app.post("/create-order", async (req, res) => {
       "[PayPal API] Order created successfully:", {orderId: order.result.id}
     );
     return res.status(201).json({orderID: order.result.id});
-  } catch (err: any) {
+  } catch (err: any) { // ESLint warning for 'any' can be refined later
     functions.logger.error(
       "[PayPal API] Error creating order:",
       {
@@ -95,11 +95,9 @@ app.post("/capture-payment", async (req, res) => {
   }
 
   const request = new paypal.orders.OrdersCaptureRequest(orderID);
-  // @ts-ignore - PayPal SDK type might not have requestBody on CaptureRequest
-  // but it is used by some versions or specific capture scenarios.
-  // For a simple capture, it's often not needed.
-  // If not needed, this line can be removed:
-  request.requestBody = {}; // Empty body for simple capture
+  // For a simple capture, request.requestBody is often not needed or an empty
+  // object is handled implicitly by the SDK for this type of request.
+  // The previous line `request.requestBody = {};` and `@ts-ignore` are removed.
 
   try {
     const capture = await paypalClient.execute(request);
@@ -118,34 +116,38 @@ app.post("/capture-payment", async (req, res) => {
           credits: admin.firestore.FieldValue.increment(creditsToPurchase),
         });
         functions.logger.info(
-          `[Firestore] Successfully added ${creditsToPurchase} credits to user ${userUID}.`
+          `[Firestore] Added ${creditsToPurchase} credits to user ${userUID}.`
         );
         return res.status(200).json({
           message: "Payment successful and credits updated.",
           captureData,
         });
-      } catch (dbError: any) {
+      } catch (dbError: any) { // ESLint warning for 'any' can be refined later
         functions.logger.error(
-          `[Firestore] Error updating credits for user ${userUID} after PayPal capture ${captureData.id}:`,
+          `[Firestore] Error updating credits for user ${userUID} after ` +
+          `PayPal capture ${captureData.id}:`,
           dbError
         );
-        // Payment captured, but DB update failed. Critical error, needs manual reconciliation.
+        // Payment captured, but DB update failed.
+        // Critical error, needs manual reconciliation.
         return res.status(500).json({
-          error: "Payment captured but failed to update credits. Please contact support.",
+          error: "Payment captured but failed to update credits. " +
+                 "Please contact support.",
           paypalCaptureId: captureData.id,
         });
       }
     } else {
       // Handle other capture statuses (e.g., PENDING, VOIDED) if necessary
       functions.logger.warn(
-        `[PayPal API] Payment capture for order ${orderID} status: ${captureData.status}.`
+        `[PayPal API] Payment capture for order ${orderID} ` +
+        `status: ${captureData.status}.`
       );
       return res.status(400).json({
         error: `Payment capture status: ${captureData.status}.`,
         details: captureData,
       });
     }
-  } catch (err: any) {
+  } catch (err: any) { // ESLint warning for 'any' can be refined later
     functions.logger.error(
       `[PayPal API] Error capturing payment for order ${orderID}:`,
       {
@@ -156,8 +158,9 @@ app.post("/capture-payment", async (req, res) => {
     );
 
     // Handle specific PayPal errors like INSTRUMENT_DECLINED
-    if (err.statusCode === 422 && err.result?.details?.[0]?.issue === "INSTRUMENT_DECLINED") {
-      return res.status(402).json({ // 402 Payment Required (or a custom code)
+    if (err.statusCode === 422 &&
+        err.result?.details?.[0]?.issue === "INSTRUMENT_DECLINED") {
+      return res.status(402).json({ // 402 Payment Required
         error: "Payment method declined by PayPal.",
         paypalError: err.result.details[0],
         isInstrumentDeclined: true,
@@ -179,7 +182,8 @@ export const paypalAPI = functions.https.onRequest(app);
 // This is the function that was previously here, now just logs
 export const helloWorld = functions.https.onRequest((request, response) => {
   functions.logger.info(
-    "[Cloud Function] helloWorld called, but PayPal integration has been moved to paypalAPI.",
+    "[Cloud Function] helloWorld called, but PayPal integration " +
+    "has been moved to paypalAPI.",
     {structuredData: true}
   );
   response.send(
