@@ -89,15 +89,14 @@ app.post("/create-order", async (req: Request, res: Response) => {
     functions.logger.info("PayPal order created successfully:", order.result);
     return res.status(200).json({orderID: order.result.id});
   } catch (err: any) { // eslint-disable-line  @typescript-eslint/no-explicit-any
-    functions.logger.error("Create order fail:", {
-      msg: err.message,
-      code: err.statusCode,
-      paypalDetails: err.result?.details || "N/A",
-    });
     const statusCode = err.statusCode || 500;
     const errDesc = err.result?.details?.[0]?.description;
-    const errorMessage =
-      errDesc || err.message || "Create order failed.";
+    const errorMessage = errDesc || err.message || "Create order failed.";
+    functions.logger.error("Create order fail:", {
+      msg: err.message,
+      code: statusCode,
+      paypalDetails: err.result?.details || "N/A",
+    });
     return res.status(statusCode).json({error: errorMessage});
   }
 });
@@ -114,9 +113,8 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
     });
   }
 
-  // @ts-ignore
   const request = new checkoutNodeJssdk.orders.OrdersCaptureRequest(orderID);
-  // No requestBody needed for capture
+  // No requestBody needed for capture for standard SDK usage
 
   try {
     const capture = await paypalClient.execute(request);
@@ -140,20 +138,21 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
           captureData: captureData,
         });
       } catch (dbError: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        const logMsg = "PayPal payment OK, DB update for user credits FAIL:";
         functions.logger.error(
-          `PayPal payment OK for ${orderID}, DB update for ${userUID} FAIL:`,
-          dbError
+          logMsg, {orderID, userUID, error: dbError},
         );
         // Critical: Payment taken, credits not awarded. Implement retry/alert.
         return res.status(500).json({
-          error: "Payment successful, but credit update failed. Contact support.",
+          error: "Payment successful, credit update failed. Contact support.",
           paypalOrderId: orderID, // Return orderID for reconciliation
         });
       }
     } else {
       // Handle other capture statuses (e.g., PENDING) if necessary
+      const logMsg = `PayPal capture status for order ${orderID}`;
       functions.logger.warn(
-        `PayPal capture status for order ${orderID} is ${captureData.status}.`
+        `${logMsg} is ${captureData.status}.`,
       );
       return res.status(400).json({
         error: `Payment capture status: ${captureData.status}.`,
@@ -162,10 +161,10 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
     }
   } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
     const logMessage = `Capture fail for ${orderID}:`;
+    const paypalDetails = err.result?.details || "N/A";
+
     functions.logger.error(logMessage, {
-      msg: err.message,
-      code: err.statusCode,
-      paypalDetails: err.result?.details || "N/A",
+      msg: err.message, code: err.statusCode, paypalDetails,
     });
 
     // Check for INSTRUMENT_DECLINED specifically
