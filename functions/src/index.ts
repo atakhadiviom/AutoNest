@@ -1,13 +1,4 @@
 
-/**
- * Import function triggers from their respective submodules:
- *
- * import {onCall} from "firebase-functions/v2/https";
- * import {onDocumentWritten} from "firebase-functions/v2/firestore";
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
-
 // Firebase and basic imports
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
@@ -90,15 +81,12 @@ app.post("/create-order", async (req: Request, res: Response) => {
     const statusCode = err.statusCode || 500;
     const errDesc = err.result?.details?.[0]?.description;
     const errorMessage = errDesc || err.message || "Create order failed.";
-    functions.logger.error(
-      "Failed to create PayPal order:",
-      {
-        message: err.message,
-        statusCode: statusCode,
-        details: err.result?.details || "No details",
-        fullError: err, // This can make the object very long
-      }
-    );
+    const logObject = {
+      message: err.message,
+      statusCode: statusCode,
+      details: err.result?.details || "No details",
+    };
+    functions.logger.error("PayPal order creation failed:", logObject);
     return res.status(statusCode).json({
       error: errorMessage,
     });
@@ -162,15 +150,14 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
     }
   } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
     const paypalDetails = err.result?.details || "N/A";
-
+    const errorLogDetails = {
+      message: err.message,
+      statusCode: err.statusCode,
+      paypalAPIDetails: paypalDetails, // Using a different key for clarity
+    };
     functions.logger.error(
-      `Failed to capture PayPal for order ${orderID}:`,
-      {
-        message: err.message,
-        statusCode: err.statusCode,
-        details: paypalDetails,
-        // fullError: err, // Removing fullError to shorten log potentially
-      }
+      `Capture failed for ${orderID}. Details:`, // Shortened msg
+      errorLogDetails
     );
 
     // Check for INSTRUMENT_DECLINED specifically
