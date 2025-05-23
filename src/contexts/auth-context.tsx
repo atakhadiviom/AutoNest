@@ -4,12 +4,14 @@
 import type { ReactNode} from "react";
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  onAuthStateChanged, 
-  User as FirebaseUser, 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  signOut 
+import {
+  onAuthStateChanged,
+  User as FirebaseUser,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  GoogleAuthProvider, // Added
+  signInWithPopup,      // Added
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, updateDoc, increment, Timestamp } from "firebase/firestore";
@@ -18,8 +20,10 @@ import { useToast } from "@/hooks/use-toast";
 interface User {
   uid: string;
   email: string | null;
+  displayName?: string | null; // Added for Google Sign-In
+  photoURL?: string | null;   // Added for Google Sign-In
   credits: number;
-  isAdmin?: boolean; // Added for admin privileges
+  isAdmin?: boolean;
 }
 
 interface AuthContextType {
@@ -27,14 +31,15 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password?: string) => Promise<{ success: boolean; error?: any }>;
   signup: (email: string, password?: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>; // Added
   logout: () => Promise<void>;
   deductCredits: (amount: number) => Promise<void>;
-  addCredits: (amount: number, updateFirestore?: boolean) => Promise<void>; 
+  addCredits: (amount: number, updateFirestore?: boolean) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const DEFAULT_CREDITS = 500; // Updated to 500 credits ($5.00)
+const DEFAULT_CREDITS = 500;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -50,38 +55,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const userDocSnap = await getDoc(userDocRef);
           if (userDocSnap.exists()) {
             const userData = userDocSnap.data();
-            setUser({ 
-              uid: firebaseUser.uid, 
+            setUser({
+              uid: firebaseUser.uid,
               email: firebaseUser.email,
+              displayName: firebaseUser.displayName || userData.displayName,
+              photoURL: firebaseUser.photoURL || userData.photoURL,
               credits: userData.credits !== undefined ? userData.credits : DEFAULT_CREDITS,
-              isAdmin: userData.isAdmin === true, // Check for isAdmin flag
+              isAdmin: userData.isAdmin === true,
             });
           } else {
-            // This case might happen if a user was created via Firebase Auth console
-            // but doesn't have a corresponding document in 'users' collection yet.
-            // Or, if this is the very first sign-in after signup where Firestore write failed.
-            await setDoc(userDocRef, { 
-              email: firebaseUser.email, 
+            // New user (either via email/password or social sign-in like Google)
+            const newUserProfile = {
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "User",
+              photoURL: firebaseUser.photoURL,
               credits: DEFAULT_CREDITS,
               createdAt: Timestamp.now(),
-              isAdmin: false, // Default new users to not be admins
-            });
-            setUser({ 
-              uid: firebaseUser.uid, 
-              email: firebaseUser.email,
-              credits: DEFAULT_CREDITS,
               isAdmin: false,
+            };
+            await setDoc(userDocRef, newUserProfile);
+            setUser({
+              uid: firebaseUser.uid,
+              ...newUserProfile
             });
-            console.log("User document created in Firestore with default credits and isAdmin=false for existing Auth user.");
+            console.log("New user document created in Firestore with default credits and isAdmin=false.");
           }
         } catch (error) {
           console.error("Error fetching/creating user document in Firestore:", error);
-          // Fallback to basic user object if Firestore interaction fails
           setUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email,
-            credits: DEFAULT_CREDITS, // Fallback credits
-            isAdmin: false, // Fallback isAdmin status
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL,
+            credits: DEFAULT_CREDITS,
+            isAdmin: false,
           });
           toast({
             title: "Firestore Error",
@@ -106,13 +113,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             description: err.message,
             variant: "destructive",
           });
-        setLoading(false); 
+        setLoading(false);
         return { success: false, error: { code: 'auth/missing-password', message: err.message } };
     }
-    setLoading(true); 
+    setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // onAuthStateChanged will handle fetching/setting user data from Firestore, including isAdmin.
       toast({
         title: "Logged In",
         description: "Successfully logged in!",
@@ -122,7 +128,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Firebase login error: ", error);
       if (error.code === 'auth/invalid-credential') {
         console.warn("Login failed due to invalid credentials. Please ensure the email and password are correct and the user exists.");
-        // Toast for invalid credentials is handled by AuthForm
       } else {
         toast({
           title: "Login Failed",
@@ -130,8 +135,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           variant: "destructive",
         });
       }
-      setLoading(false); 
-      return { success: false, error }; 
+      setLoading(false);
+      return { success: false, error };
     }
   };
 
@@ -144,20 +149,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
         throw new Error("Password is required for Firebase signup.");
     }
-    setLoading(true); 
+    setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const userDocRef = doc(db, "users", userCredential.user.uid);
-      await setDoc(userDocRef, {
-        email: userCredential.user.email,
-        credits: DEFAULT_CREDITS,
-        createdAt: Timestamp.now(), 
-        isAdmin: false, // New users are not admins by default
-      });
-      // onAuthStateChanged will set the user state, including the new isAdmin field.
+      // Firestore document creation is now handled by onAuthStateChanged
       toast({
         title: "Account Created",
-        description: `Successfully signed up! ${DEFAULT_CREDITS} credits ($${(DEFAULT_CREDITS/100).toFixed(2)}) added.`,
+        description: `Successfully signed up! ${DEFAULT_CREDITS} credits ($${(DEFAULT_CREDITS/100).toFixed(2)}) will be added.`,
       });
     } catch (error: any) {
       console.error("Firebase signup error: ", error);
@@ -166,16 +164,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: error.message || "Could not create account. Please try again.",
         variant: "destructive",
       });
-      setLoading(false); 
+      setLoading(false);
       throw error;
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    setLoading(true);
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+      // onAuthStateChanged will handle Firestore document creation/update
+      toast({
+        title: "Signed In with Google",
+        description: "Successfully signed in with Google!",
+      });
+    } catch (error: any) {
+      console.error("Google sign-in error: ", error);
+      let description = error.message || "Could not sign in with Google. Please try again.";
+      if (error.code === 'auth/popup-closed-by-user') {
+        description = "Google Sign-in popup was closed before completion.";
+      } else if (error.code === 'auth/account-exists-with-different-credential') {
+        description = "An account already exists with this email address using a different sign-in method.";
+      }
+      toast({
+        title: "Google Sign-In Failed",
+        description,
+        variant: "destructive",
+      });
+      setLoading(false);
     }
   };
 
   const logout = async () => {
     try {
       await signOut(auth);
-      setUser(null); 
-      router.push('/login'); 
+      setUser(null);
+      router.push('/login');
       toast({
         title: "Logged Out",
         description: "Successfully logged out.",
@@ -187,7 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: error.message || "Could not log out. Please try again.",
         variant: "destructive",
       });
-    } 
+    }
   };
 
   const deductCredits = async (amount: number) => {
@@ -199,24 +224,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast({ title: "Insufficient Credits", description: "Not enough credits to perform this action.", variant: "destructive" });
       throw new Error("Insufficient credits");
     }
-
-    // This is a client-side update for prototyping.
-    // In production, credit deduction MUST be handled by a secure backend (e.g., Cloud Function)
-    // after verifying the action that consumes credits.
-    console.warn("[AuthContext] deductCredits called client-side. In production, this must be a server-side operation via a Cloud Function.");
+    console.warn("[AuthContext] deductCredits called. In production, this must be a server-side operation.");
     const userDocRef = doc(db, "users", user.uid);
     try {
       await updateDoc(userDocRef, {
-        credits: increment(-amount) 
+        credits: increment(-amount)
       });
-      
+
       const newCredits = user.credits - amount;
       setUser(prevUser => prevUser ? { ...prevUser, credits: newCredits } : null);
       toast({ title: "Credits Deducted", description: `${amount} credits used. Remaining: $${(newCredits / 100).toFixed(2)}`});
     } catch (error) {
       console.error("Error deducting credits in Firestore:", error);
       toast({ title: "Credit Deduction Failed", description: "Could not update credits in the database.", variant: "destructive" });
-      throw error; 
+      throw error;
     }
   };
 
@@ -230,13 +251,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error("Credit amount must be positive");
     }
 
-    const newCredits = user.credits + amount; 
+    const newCredits = user.credits + amount;
 
     if (updateFirestore) {
-      // This is a client-side update, typically for simulation or if no backend is in place.
-      // In production, credit addition MUST be triggered by a secure backend process
-      // (e.g., after a verified payment via a Cloud Function).
-      console.warn("[AuthContext] addCredits called with client-side Firestore update. In production, this should be server-side via a Cloud Function triggered by verified payment.");
+      console.warn("[AuthContext] addCredits called with client-side Firestore update. In production, this should be server-side.");
       const userDocRef = doc(db, "users", user.uid);
       try {
         await updateDoc(userDocRef, {
@@ -246,20 +264,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error("Error adding credits in Firestore:", error);
         toast({ title: "Adding Credits Failed (DB)", description: "Could not update credits in the database.", variant: "destructive" });
-        throw error; 
+        throw error;
       }
     } else {
       // Firestore update was handled by server, just update local state and inform user if needed
-      toast({ title: "Credits Updated", description: `Your credit balance has been updated. New balance: $${(newCredits / 100).toFixed(2)}`});
+      if (user.credits !== newCredits) { // Avoid toast if credits didn't actually change from server's perspective
+         toast({ title: "Credits Updated", description: `Your credit balance has been updated. New balance: $${(newCredits / 100).toFixed(2)}`});
+      }
     }
-
-    // Update local state
     setUser(prevUser => prevUser ? { ...prevUser, credits: newCredits } : null);
   };
 
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout, deductCredits, addCredits }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, signInWithGoogle, logout, deductCredits, addCredits }}>
       {children}
     </AuthContext.Provider>
   );
