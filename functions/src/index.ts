@@ -5,6 +5,8 @@
  * These functions handle server-side interactions with PayPal,
  * such as creating orders and capturing payments, and securely
  * updating user credits in Firestore.
+ *
+ * Also includes a trigger for sending a simulated welcome email on new user signup.
  */
 
 import * as functions from "firebase-functions";
@@ -49,9 +51,10 @@ const getPaypalCredentials = () => {
   const clientSecret = functions.config().paypal?.client_secret ||
                        process.env.PAYPAL_CLIENT_SECRET;
 
-  const errorMsg = "PayPal API credentials (client ID or secret) or " +
-                   "environment not configured. Check Function config or " +
-                   ".env for emulation.";
+  const errorMsg =
+    "PayPal API credentials (client ID or secret) or " +
+    "environment not configured. Check Function config or " +
+    ".env for emulation.";
 
   if (!clientId || !clientSecret) {
     functions.logger.error(errorMsg);
@@ -290,3 +293,63 @@ export const helloWorld = functions.https.onRequest(
     response.send("Hello from simplified Firebase!");
   },
 );
+
+// --- New Auth Trigger for Welcome Email ---
+export const sendWelcomeEmail = functions.auth.user().onCreate(async (user) => {
+  const email = user.email; // The email of the user.
+  // Provide a fallback if displayName is null or undefined
+  const displayName = user.displayName || user.email?.split("@")[0] || "Valued User";
+
+  if (!email) {
+    functions.logger.error(
+      "Cannot send welcome email: user email is missing.",
+      {userId: user.uid},
+    );
+    return;
+  }
+
+  functions.logger.info(`Simulating sending welcome email to: ${email}`, {
+    userId: user.uid,
+    emailDetails: {
+      to: email,
+      subject: `Welcome to AutoNest, ${displayName}!`,
+      // eslint-disable-next-line max-len
+      body: `Hi ${displayName},\n\nWelcome to AutoNest! We're thrilled to have you on board.\n\nExplore your dashboard and start automating your workflows today.\n\nBest regards,\nThe AutoNest Team`,
+    },
+  });
+
+  // TODO: Implement actual email sending here.
+  // This typically involves using a third-party email service like SendGrid,
+  // Mailgun, or using Nodemailer with an SMTP provider.
+  //
+  // Example (conceptual, requires further setup and API keys):
+  //
+  // 1. Add an email sending library to functions/package.json
+  //    (e.g., 'nodemailer', '@sendgrid/mail').
+  // 2. Configure API keys securely (e.g., using Firebase Function Configuration).
+  //    firebase functions:config:set sendgrid.apikey="YOUR_SENDGRID_API_KEY"
+  //    firebase functions:config:set emailconfig.sender="noreply@yourdomain.com"
+  //
+  // 3. Initialize the email client and send the email:
+  //
+  //    const sgMail = require('@sendgrid/mail');
+  //    sgMail.setApiKey(functions.config().sendgrid.apikey);
+  //    const msg = {
+  //      to: email,
+  //      from: functions.config().emailconfig.sender,
+  //      subject: `Welcome to AutoNest, ${displayName}!`,
+  //      text: `Hi ${displayName},\n\nWelcome to AutoNest! ...`,
+  //      html: `<p>Hi ${displayName},</p><p>Welcome to AutoNest! ...</p>`,
+  //    };
+  //    try {
+  //      await sgMail.send(msg);
+  //      functions.logger.info(`Welcome email successfully sent to ${email}`);
+  //    } catch (error) {
+  //      functions.logger.error(`Error sending welcome email to ${email}:`, error);
+  //       if (error.response) {
+  //         functions.logger.error(error.response.body);
+  //       }
+  //    }
+
+  return null; // Indicate function completion.
+});
