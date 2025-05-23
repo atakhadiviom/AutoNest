@@ -20,14 +20,17 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 // Initialize Firebase Admin SDK
+// Ensures it's initialized only once.
 if (!admin.apps.length) {
   admin.initializeApp();
 }
 const db = admin.firestore();
 
 const app = express();
-app.use(cors({origin: true}));
-app.use(bodyParser.json());
+
+// Middleware
+app.use(cors({origin: true})); // Enable CORS for all origins
+app.use(bodyParser.json()); // Parse JSON request bodies
 
 // --- PayPal API Configuration ---
 const getPaypalApiBaseUrl = (): string => {
@@ -36,7 +39,7 @@ const getPaypalApiBaseUrl = (): string => {
   if (env && env.toLowerCase() === "live") {
     return "https://api-m.paypal.com";
   }
-  return "https://api-m.sandbox.paypal.com";
+  return "https://api-m.sandbox.paypal.com"; // Default to sandbox
 };
 
 const getPaypalCredentials = () => {
@@ -47,7 +50,7 @@ const getPaypalCredentials = () => {
 
   if (!clientId || !clientSecret) {
     functions.logger.error(
-      "PayPal Client ID or Secret is missing in configuration.",
+      "PayPal Client ID or Secret is missing in config.",
     );
     throw new Error("PayPal API credentials not configured.");
   }
@@ -262,9 +265,10 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
   }
 });
 
+// Expose Express API as a single Cloud Function:
 export const paypalAPI = functions.https.onRequest(app);
 
-// Simplified helloWorld function for testing deployment
+// Extremely simplified helloWorld function for testing deployment
 export const helloWorld = functions.https.onRequest(
   (_req: Request, response: Response) => {
     functions.logger.info("Hello logs!", {structuredData: true});
