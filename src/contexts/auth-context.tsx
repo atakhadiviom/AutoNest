@@ -19,6 +19,7 @@ interface User {
   uid: string;
   email: string | null;
   credits: number;
+  isAdmin?: boolean; // Added for admin privileges
 }
 
 interface AuthContextType {
@@ -53,30 +54,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               uid: firebaseUser.uid, 
               email: firebaseUser.email,
               credits: userData.credits !== undefined ? userData.credits : DEFAULT_CREDITS,
+              isAdmin: userData.isAdmin === true, // Check for isAdmin flag
             });
           } else {
+            // This case might happen if a user was created via Firebase Auth console
+            // but doesn't have a corresponding document in 'users' collection yet.
+            // Or, if this is the very first sign-in after signup where Firestore write failed.
             await setDoc(userDocRef, { 
               email: firebaseUser.email, 
               credits: DEFAULT_CREDITS,
               createdAt: Timestamp.now(),
+              isAdmin: false, // Default new users to not be admins
             });
             setUser({ 
               uid: firebaseUser.uid, 
               email: firebaseUser.email,
               credits: DEFAULT_CREDITS,
+              isAdmin: false,
             });
-            console.log("User document created in Firestore with default credits for existing Auth user.");
+            console.log("User document created in Firestore with default credits and isAdmin=false for existing Auth user.");
           }
         } catch (error) {
           console.error("Error fetching/creating user document in Firestore:", error);
+          // Fallback to basic user object if Firestore interaction fails
           setUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email,
-            credits: DEFAULT_CREDITS,
+            credits: DEFAULT_CREDITS, // Fallback credits
+            isAdmin: false, // Fallback isAdmin status
           });
           toast({
             title: "Firestore Error",
-            description: "Could not load user data. Using default credits.",
+            description: "Could not load full user data. Using default values.",
             variant: "destructive",
           });
         }
@@ -103,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true); 
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      // onAuthStateChanged will handle fetching/setting user data from Firestore, including isAdmin.
       toast({
         title: "Logged In",
         description: "Successfully logged in!",
@@ -112,6 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Firebase login error: ", error);
       if (error.code === 'auth/invalid-credential') {
         console.warn("Login failed due to invalid credentials. Please ensure the email and password are correct and the user exists.");
+        // Toast for invalid credentials is handled by AuthForm
       } else {
         toast({
           title: "Login Failed",
@@ -141,7 +152,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: userCredential.user.email,
         credits: DEFAULT_CREDITS,
         createdAt: Timestamp.now(), 
+        isAdmin: false, // New users are not admins by default
       });
+      // onAuthStateChanged will set the user state, including the new isAdmin field.
       toast({
         title: "Account Created",
         description: "Successfully signed up! Default credits added.",
@@ -187,16 +200,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error("Insufficient credits");
     }
 
+    // THIS SHOULD BE A SERVER-SIDE OPERATION IN PRODUCTION FOR SECURITY
+    console.warn("[AuthContext] deductCredits called client-side. In production, this must be a server-side operation via a Cloud Function.");
     const userDocRef = doc(db, "users", user.uid);
     try {
-       // THIS SHOULD BE A SERVER-SIDE OPERATION IN PRODUCTION
-      console.warn("[AuthContext] deductCredits called client-side. In production, this must be a server-side operation.");
       await updateDoc(userDocRef, {
         credits: increment(-amount) 
       });
       
       const newCredits = user.credits - amount;
-      setUser({ ...user, credits: newCredits });
+      setUser(prevUser => prevUser ? { ...prevUser, credits: newCredits } : null);
       toast({ title: "Credits Deducted", description: `${amount} credits used. Remaining: ${(newCredits / 100).toFixed(2)}`});
     } catch (error) {
       console.error("Error deducting credits in Firestore:", error);
@@ -215,33 +228,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error("Credit amount must be positive");
     }
 
+    const newCredits = user.credits + amount; // Calculate new credits for local state first
+
     if (updateFirestore) {
       // THIS SHOULD BE A SERVER-SIDE OPERATION IN PRODUCTION (triggered by verified payment)
-      console.warn("[AuthContext] addCredits called client-side with Firestore update. In production, this should be server-side.");
+      console.warn("[AuthContext] addCredits called client-side with Firestore update. In production, this should be server-side via a Cloud Function triggered by verified payment.");
       const userDocRef = doc(db, "users", user.uid);
       try {
         await updateDoc(userDocRef, {
           credits: increment(amount)
         });
-        // Toast for successful Firestore update will be handled by the calling function (e.g., BillingPage)
+         toast({ title: "Credits Added (Firestore Updated)", description: `${amount} credits added. New balance: ${(newCredits / 100).toFixed(2)}`});
       } catch (error) {
         console.error("Error adding credits in Firestore:", error);
-        toast({ title: "Adding Credits Failed", description: "Could not update credits in the database.", variant: "destructive" });
+        toast({ title: "Adding Credits Failed (DB)", description: "Could not update credits in the database.", variant: "destructive" });
         throw error; // Re-throw so the caller knows Firestore update failed
       }
     }
 
-    // Update local state regardless of direct Firestore update here,
-    // as the server-side call in production would be the source of truth.
-    const newCredits = user.credits + amount;
-    setUser(prevUser => prevUser ? { ...prevUser, credits: prevUser.credits + amount } : null);
+    // Update local state
+    setUser(prevUser => prevUser ? { ...prevUser, credits: newCredits } : null);
     
-    // Do not show a generic toast here if updateFirestore is false, 
-    // as the calling function (e.g., BillingPage after server confirmation) will show a specific toast.
-    if (updateFirestore) {
-        // This path is for direct client-side addition (e.g., simulation button)
-        toast({ title: "Credits Added (Client)", description: `${amount} credits added. New balance: ${(newCredits / 100).toFixed(2)}`});
-    }
+    // If Firestore wasn't updated (e.g., server handled it), the caller might show its own success toast.
+    // If Firestore was updated by this client-side call (simulation button), a toast is shown above.
   };
 
 
@@ -259,5 +268,3 @@ export function useAuth() {
   }
   return context;
 }
-
-      
