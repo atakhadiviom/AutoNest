@@ -34,7 +34,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const DEFAULT_CREDITS = 100; 
+const DEFAULT_CREDITS = 500; // Updated to 500 credits ($5.00)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -157,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // onAuthStateChanged will set the user state, including the new isAdmin field.
       toast({
         title: "Account Created",
-        description: "Successfully signed up! Default credits added.",
+        description: `Successfully signed up! ${DEFAULT_CREDITS} credits ($${(DEFAULT_CREDITS/100).toFixed(2)}) added.`,
       });
     } catch (error: any) {
       console.error("Firebase signup error: ", error);
@@ -200,7 +200,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error("Insufficient credits");
     }
 
-    // THIS SHOULD BE A SERVER-SIDE OPERATION IN PRODUCTION FOR SECURITY
+    // This is a client-side update for prototyping.
+    // In production, credit deduction MUST be handled by a secure backend (e.g., Cloud Function)
+    // after verifying the action that consumes credits.
     console.warn("[AuthContext] deductCredits called client-side. In production, this must be a server-side operation via a Cloud Function.");
     const userDocRef = doc(db, "users", user.uid);
     try {
@@ -210,7 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       const newCredits = user.credits - amount;
       setUser(prevUser => prevUser ? { ...prevUser, credits: newCredits } : null);
-      toast({ title: "Credits Deducted", description: `${amount} credits used. Remaining: ${(newCredits / 100).toFixed(2)}`});
+      toast({ title: "Credits Deducted", description: `${amount} credits used. Remaining: $${(newCredits / 100).toFixed(2)}`});
     } catch (error) {
       console.error("Error deducting credits in Firestore:", error);
       toast({ title: "Credit Deduction Failed", description: "Could not update credits in the database.", variant: "destructive" });
@@ -228,29 +230,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error("Credit amount must be positive");
     }
 
-    const newCredits = user.credits + amount; // Calculate new credits for local state first
+    const newCredits = user.credits + amount; 
 
     if (updateFirestore) {
-      // THIS SHOULD BE A SERVER-SIDE OPERATION IN PRODUCTION (triggered by verified payment)
-      console.warn("[AuthContext] addCredits called client-side with Firestore update. In production, this should be server-side via a Cloud Function triggered by verified payment.");
+      // This is a client-side update, typically for simulation or if no backend is in place.
+      // In production, credit addition MUST be triggered by a secure backend process
+      // (e.g., after a verified payment via a Cloud Function).
+      console.warn("[AuthContext] addCredits called with client-side Firestore update. In production, this should be server-side via a Cloud Function triggered by verified payment.");
       const userDocRef = doc(db, "users", user.uid);
       try {
         await updateDoc(userDocRef, {
           credits: increment(amount)
         });
-         toast({ title: "Credits Added (Firestore Updated)", description: `${amount} credits added. New balance: ${(newCredits / 100).toFixed(2)}`});
+         toast({ title: "Credits Added", description: `${amount} credits ($${(amount/100).toFixed(2)}) added. New balance: $${(newCredits / 100).toFixed(2)}`});
       } catch (error) {
         console.error("Error adding credits in Firestore:", error);
         toast({ title: "Adding Credits Failed (DB)", description: "Could not update credits in the database.", variant: "destructive" });
-        throw error; // Re-throw so the caller knows Firestore update failed
+        throw error; 
       }
+    } else {
+      // Firestore update was handled by server, just update local state and inform user if needed
+      toast({ title: "Credits Updated", description: `Your credit balance has been updated. New balance: $${(newCredits / 100).toFixed(2)}`});
     }
 
     // Update local state
     setUser(prevUser => prevUser ? { ...prevUser, credits: newCredits } : null);
-    
-    // If Firestore wasn't updated (e.g., server handled it), the caller might show its own success toast.
-    // If Firestore was updated by this client-side call (simulation button), a toast is shown above.
   };
 
 
