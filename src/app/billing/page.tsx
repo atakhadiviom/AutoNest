@@ -30,8 +30,14 @@ import { useToast } from "@/hooks/use-toast";
 
 const CREDITS_PER_DOLLAR = 100;
 
-// Read from environment variables
+// THIS IS THE PUBLIC PAYPAL CLIENT ID FOR THE FRONTEND JAVASCRIPT SDK
+// IT IS READ FROM ENVIRONMENT VARIABLES. Next.js embeds this at build time.
+// Ensure NEXT_PUBLIC_PAYPAL_CLIENT_ID is set correctly in your .env file
+// AND THAT YOU RESTART YOUR NEXT.JS DEV SERVER AFTER CHANGING .env
 const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID";
+
+// This is the base URL for your Firebase Cloud Functions for PayPal.
+// Ensure NEXT_PUBLIC_PAYPAL_FUNCTIONS_BASE_URL is set correctly in your .env file.
 const CLOUD_FUNCTION_BASE_URL = process.env.NEXT_PUBLIC_PAYPAL_FUNCTIONS_BASE_URL;
 
 interface PayPalPaymentButtonsProps {
@@ -72,13 +78,13 @@ const PayPalPaymentButtons: React.FC<PayPalPaymentButtonsProps> = ({
     if (creditsToPurchase <= 0) {
       const errorMsg = "Invalid credit amount. Credits to purchase must be greater than zero.";
       toast({ title: "Invalid Amount", description: errorMsg, variant: "destructive" });
-      console.error("[PayPalButtons] Error in createOrder:", errorMsg);
-      onPaymentError(new Error(errorMsg)); // Notify parent
+      console.error("[PayPalButtons] Error in createOrder (client-side validation):", errorMsg);
+      onPaymentError(new Error(errorMsg));
       return Promise.reject(new Error(errorMsg)); // Reject to inform PayPalButtons
     }
     if (!CLOUD_FUNCTION_BASE_URL) {
       const errorMsg = "Payment functions URL is not configured. Cannot create order.";
-      console.error("[PayPalButtons] Error in createOrder:", errorMsg);
+      console.error("[PayPalButtons] Error in createOrder (client-side validation):", errorMsg);
       onPaymentError(new Error(errorMsg));
       return Promise.reject(new Error(errorMsg));
     }
@@ -100,8 +106,8 @@ const PayPalPaymentButtons: React.FC<PayPalPaymentButtonsProps> = ({
       return orderData.orderID;
     } catch (err: any) {
       console.error("[PayPalButtons] Error in createOrder calling server:", err);
-      onPaymentError(err); // Notify parent
-      return Promise.reject(err); // Reject to inform PayPalButtons
+      onPaymentError(err);
+      return Promise.reject(err);
     }
   };
 
@@ -136,11 +142,12 @@ const PayPalPaymentButtons: React.FC<PayPalPaymentButtonsProps> = ({
       const captureData = await response.json();
 
       if (!response.ok) {
+        // Server should ideally return a specific status/flag for INSTRUMENT_DECLINED
         if (response.status === 402 && captureData.isInstrumentDeclined) {
           console.warn("[PayPalButtons] Instrument declined by server. Restarting payment.");
           toast({ title: "Payment Method Declined", description: captureData.error || "Your payment method was declined. Please try another.", variant: "destructive"});
-          onPaymentError(new Error(captureData.error || "Payment method declined. Please try another."));
-          return actions.restart();
+          onPaymentError(new Error(captureData.error || "Payment method declined. Please try another.")); // Notify parent
+          return actions.restart(); // This is a PayPal SDK function
         }
         const errorMsg = captureData.error || `Server error capturing payment. Status: ${response.status}`;
         console.error("[PayPalButtons] Server error capturing payment:", captureData);
@@ -148,21 +155,21 @@ const PayPalPaymentButtons: React.FC<PayPalPaymentButtonsProps> = ({
       }
 
       console.log("[PayPalButtons] Payment captured successfully by server:", captureData);
-      onPaymentSuccess(captureData);
-      return Promise.resolve();
+      onPaymentSuccess(captureData); // Notify parent
+      return Promise.resolve(); // Resolve to indicate success to PayPalButtons
     } catch (err: any) {
       console.error("[PayPalButtons] Error in onApprove calling server or processing response:", err);
-      onPaymentError(err);
-      return Promise.reject(err);
+      onPaymentError(err); // Notify parent
+      return Promise.reject(err); // Reject to inform PayPalButtons
     }
   };
-  
+
   const onError: PayPalButtonsComponentProps['onError'] = (err: any) => {
     const errorMessage = err.message || "An unknown PayPal error occurred.";
-    console.error("[PayPalButtons] onError triggered. Raw error object:", err);
-    
+    console.error("[PayPalButtons] onError triggered (This indicates an ERROR from PayPal before or during the payment flow). Raw error object:", err);
+
     if (errorMessage.toLowerCase().includes("window closed") || errorMessage.toLowerCase().includes("popup closed")) {
-      console.log("[PayPal Buttons] onError: Detected PayPal window closed by user or popup interaction. Treating as cancellation.");
+      console.log("[PayPalButtons] onError: Detected PayPal window closed by user or popup interaction. Treating as cancellation.");
       onPaymentCancel();
     } else if (errorMessage.toLowerCase().includes("popup window was blocked") || errorMessage.toLowerCase().includes("can not open popup window - blocked")) {
       console.warn("[PayPalButtons] onError: PayPal popup was blocked.");
@@ -173,7 +180,7 @@ const PayPalPaymentButtons: React.FC<PayPalPaymentButtonsProps> = ({
   };
 
   const onCancel: PayPalButtonsComponentProps['onCancel'] = () => {
-    console.log("[PayPal Buttons] onCancel triggered - user cancelled the payment.");
+    console.log("[PayPalButtons] onCancel triggered - user cancelled the payment.");
     onPaymentCancel();
   };
 
@@ -181,15 +188,15 @@ const PayPalPaymentButtons: React.FC<PayPalPaymentButtonsProps> = ({
     return <div className="flex justify-center items-center py-4"><Spinner size={24} /> <span className="ml-2">Loading PayPal...</span></div>;
   }
 
-  // isRejected case is handled by the parent (BillingPage) via onPaymentError
   if (isRejected) {
-    return null; 
+    // Error message is already handled by the parent (BillingPage) via onPaymentError called from useEffect
+    return null;
   }
 
   return (
     <PayPalButtons
-      key={dollarAmount} 
-      style={{ 
+      key={dollarAmount} // Re-render if amount changes
+      style={{
         shape: "pill",
         layout: "vertical",
         color: "blue",
@@ -213,23 +220,22 @@ export default function BillingPage() {
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
 
-  const displayedDollarValue = (user?.credits !== undefined ? (user.credits / CREDITS_PER_DOLLAR) : 0).toFixed(2);
+  const displayedDollarValue = user?.credits !== undefined ? (user.credits / CREDITS_PER_DOLLAR).toFixed(2) : "0.00";
   const dollarAmountToPay = (creditsToPurchase / CREDITS_PER_DOLLAR).toFixed(2);
-  
+
   useEffect(() => {
-    console.log("[BillingPage] Component Mounted. PAYPAL_CLIENT_ID from env:", process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID);
-    console.log("[BillingPage] Using PAYPAL_CLIENT_ID:", PAYPAL_CLIENT_ID);
-    console.log("[BillingPage] Using CLOUD_FUNCTION_BASE_URL:", CLOUD_FUNCTION_BASE_URL);
+    console.log("[BillingPage] Attempting to use PAYPAL_CLIENT_ID:", PAYPAL_CLIENT_ID);
+    console.log("[BillingPage] Attempting to use CLOUD_FUNCTION_BASE_URL:", CLOUD_FUNCTION_BASE_URL);
 
     if (PAYPAL_CLIENT_ID === "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID" || !PAYPAL_CLIENT_ID) {
-        setPaymentError("PayPal Client ID is not configured. Please set NEXT_PUBLIC_PAYPAL_CLIENT_ID in your environment variables.");
+        const msg = "PayPal Client ID is not configured. Please set NEXT_PUBLIC_PAYPAL_CLIENT_ID in your environment variables.";
+        setPaymentError(msg);
+        console.error("[BillingPage] Configuration Error:", msg);
     }
     if (!CLOUD_FUNCTION_BASE_URL) {
-        setPaymentError((prev) => 
-            prev 
-            ? `${prev} Also, Payment Functions URL (Cloud Functions base URL) is not configured. Please set NEXT_PUBLIC_PAYPAL_FUNCTIONS_BASE_URL.` 
-            : "Payment Functions URL (Cloud Functions base URL) is not configured. Please set NEXT_PUBLIC_PAYPAL_FUNCTIONS_BASE_URL."
-        );
+        const msg = "Payment Functions URL (Cloud Functions base URL) is not configured. Please set NEXT_PUBLIC_PAYPAL_FUNCTIONS_BASE_URL.";
+        setPaymentError((prev) => prev ? `${prev} Also, ${msg}` : msg);
+        console.error("[BillingPage] Configuration Error:", msg);
     }
   }, []);
 
@@ -237,7 +243,7 @@ export default function BillingPage() {
   const handleCreditAmountChange = (e: ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value, 10);
     setCreditsToPurchase(isNaN(value) || value < 1 ? 1 : value);
-    setPaymentError(null); 
+    setPaymentError(null);
   };
 
   const handlePaymentSuccess = useCallback((details: any) => {
@@ -246,32 +252,31 @@ export default function BillingPage() {
       title: "Payment Successful!",
       description: `${creditsToPurchase} credits have been added to your account.`,
     });
-    addCredits(creditsToPurchase, false); // false to only update local state
+    addCredits(creditsToPurchase, false); // false: server already updated Firestore
     setCreditsToPurchase(100);
     setPaymentError(null);
     setPaymentProcessing(false);
   }, [creditsToPurchase, addCredits, toast]);
 
   const handlePaymentError = useCallback((error: any) => {
-    const message = error.message || "An unexpected error occurred during payment.";
+    let message = error.message || "An unexpected error occurred during payment.";
     console.error("[BillingPage] handlePaymentError. Error:", message, error);
-    
-    let displayMessage = message;
-    if (message.toLowerCase().includes("popup window was blocked")) {
-      displayMessage = "PayPal popup window was blocked. Please disable your popup blocker for this site and try again.";
-    } else if (message.toLowerCase().includes("paypal sdk failed to load")) {
-       displayMessage = "The PayPal payment system failed to load. This can be due to network issues, ad-blockers, or problems reaching PayPal's services. Please check your internet connection, disable any ad-blockers for this site, and try refreshing the page. If the problem persists, PayPal might be experiencing temporary issues.";
+
+    if (message.toLowerCase().includes("popup window was blocked") || message.toLowerCase().includes("can not open popup window - blocked")) {
+      message = "PayPal popup window was blocked. Please disable your popup blocker for this site and try again.";
+    } else if (message.toLowerCase().includes("paypal sdk failed to load") || message.toLowerCase().includes("paypal payment system failed to load")) {
+       message = "The PayPal payment system failed to load. This can be due to network issues, ad-blockers, or problems reaching PayPal's services. Please check your internet connection, disable any ad-blockers for this site, ensure your PayPal Client ID is correctly set, and try refreshing the page. If the problem persists, PayPal might be experiencing temporary issues.";
     }
 
-    setPaymentError(displayMessage);
+    setPaymentError(message);
     toast({
       title: "Payment Failed",
-      description: displayMessage,
+      description: message,
       variant: "destructive",
     });
     setPaymentProcessing(false);
   }, [toast]);
-  
+
   const handlePaymentCancel = useCallback(() => {
     console.log("[BillingPage] handlePaymentCancel called.");
     setPaymentError("Payment was cancelled.");
@@ -295,7 +300,9 @@ export default function BillingPage() {
     setPaymentProcessing(true);
     setPaymentError(null);
     try {
-      await addCredits(creditsToPurchase, true); 
+      // For simulation, we call addCredits with updateFirestore=true to mimic a direct add.
+      // In a real scenario, this would call a server endpoint that securely adds credits.
+      await addCredits(creditsToPurchase, true);
       toast({
         title: "Credits Added (Simulated)",
         description: `${creditsToPurchase} credits have been added to your account.`,
@@ -332,16 +339,18 @@ export default function BillingPage() {
   const scriptProviderOptions = {
       "client-id": PAYPAL_CLIENT_ID,
       currency: "USD",
-      "enable-funding": "card", 
-      "disable-funding": "venmo,paylater", 
-      "buyer-country": "US", 
-      components: "buttons", 
-      "data-sdk-integration-source":"developer-studio"
+      "enable-funding": "card",
+      "disable-funding": "venmo,paylater",
+      "buyer-country": "US",
+      components: "buttons",
+      "data-sdk-integration-source":"developer-studio" // From your HTML sample
   };
-  
+
   console.log("[BillingPage] PAYPAL_CLIENT_ID for Provider:", PAYPAL_CLIENT_ID);
   console.log("[BillingPage] scriptProviderOptions for Provider:", scriptProviderOptions);
 
+
+  const isConfigError = PAYPAL_CLIENT_ID === "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID" || !PAYPAL_CLIENT_ID || !CLOUD_FUNCTION_BASE_URL;
 
   return (
     <AppLayout>
@@ -361,20 +370,20 @@ export default function BillingPage() {
                 <DollarSign className="h-6 w-6 text-primary" />
                 <div>
                     <p className="text-xs text-muted-foreground">Current Balance</p>
-                    <p className="font-semibold text-2xl text-primary">{displayedDollarValue}</p>
+                    <p className="font-semibold text-2xl text-primary">${displayedDollarValue}</p>
                 </div>
             </div>
           </Card>
         </div>
-        
-        {(PAYPAL_CLIENT_ID === "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID" || !PAYPAL_CLIENT_ID || !CLOUD_FUNCTION_BASE_URL) && (
+
+        {isConfigError && (
             <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Configuration Error</AlertTitle>
                 <AlertDescription>
-                  {(PAYPAL_CLIENT_ID === "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID" || !PAYPAL_CLIENT_ID) && <div>PayPal Client ID is not configured. Please set NEXT_PUBLIC_PAYPAL_CLIENT_ID in your environment variables.</div>}
-                  {!CLOUD_FUNCTION_BASE_URL && <div>Payment Functions URL (Cloud Functions base URL) is not configured. Please set NEXT_PUBLIC_PAYPAL_FUNCTIONS_BASE_URL.</div>}
-                   {(PAYPAL_CLIENT_ID === "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID" || !PAYPAL_CLIENT_ID) && 
+                  {(PAYPAL_CLIENT_ID === "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID" || !PAYPAL_CLIENT_ID) && <div>PayPal Client ID (NEXT_PUBLIC_PAYPAL_CLIENT_ID) is not configured correctly. Please set it in your environment variables.</div>}
+                  {!CLOUD_FUNCTION_BASE_URL && <div>Payment Functions URL (NEXT_PUBLIC_PAYPAL_FUNCTIONS_BASE_URL) is not configured. Please set it.</div>}
+                   {(PAYPAL_CLIENT_ID === "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID" || !PAYPAL_CLIENT_ID) &&
                     <Button onClick={() => window.location.reload()} variant="outline" className="mt-2">
                         <RefreshCw className="mr-2 h-4 w-4"/> Try Reloading Page
                     </Button>
@@ -402,7 +411,7 @@ export default function BillingPage() {
                   onChange={handleCreditAmountChange}
                   min="1"
                   className="text-lg p-3"
-                  disabled={paymentProcessing || PAYPAL_CLIENT_ID === "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID" || !CLOUD_FUNCTION_BASE_URL}
+                  disabled={paymentProcessing || isConfigError}
                 />
               </div>
               <div className="text-right sm:text-left">
@@ -412,7 +421,7 @@ export default function BillingPage() {
                 </p>
               </div>
             </div>
-            
+
             {paymentProcessing && (
               <div className="flex justify-center items-center py-4">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -423,17 +432,17 @@ export default function BillingPage() {
             {paymentError && (
               <Alert variant="destructive" className="mt-4">
                 <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Payment Error</AlertTitle>
+                <AlertTitle>Payment System Error</AlertTitle>
                 <AlertDescription>{paymentError}</AlertDescription>
-                 {paymentError.toLowerCase().includes("paypal client id is not configured") && (
+                 {(paymentError.toLowerCase().includes("paypal client id") || paymentError.toLowerCase().includes("paypal sdk failed to load")) && (
                     <Button onClick={() => window.location.reload()} variant="outline" className="mt-2">
                         <RefreshCw className="mr-2 h-4 w-4"/> Try Reloading Page
                     </Button>
                 )}
               </Alert>
             )}
-            
-            {PAYPAL_CLIENT_ID !== "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID" && PAYPAL_CLIENT_ID && CLOUD_FUNCTION_BASE_URL && !paymentProcessing && !paymentError && (
+
+            {!isConfigError && !paymentProcessing && !paymentError && (
               <div className="mt-6">
                 <PayPalScriptProvider options={scriptProviderOptions}>
                     <PayPalPaymentButtons
@@ -448,12 +457,12 @@ export default function BillingPage() {
                 </PayPalScriptProvider>
               </div>
             )}
-             {(!paymentProcessing && (PAYPAL_CLIENT_ID === "YOUR_PLACEHOLDER_PAYPAL_CLIENT_ID" || !PAYPAL_CLIENT_ID || !CLOUD_FUNCTION_BASE_URL)) && (
+             {(!paymentProcessing && isConfigError) && (
                 <Alert variant="warning" className="mt-6">
                     <Info className="h-4 w-4" />
                     <AlertTitle>PayPal Unavailable</AlertTitle>
                     <AlertDescription>
-                        Live payments are currently unavailable due to a configuration issue. Please ensure all required environment variables (PayPal Client ID and Functions Base URL) are correctly set.
+                        Live payments are currently unavailable due to a configuration issue. Please ensure NEXT_PUBLIC_PAYPAL_CLIENT_ID and NEXT_PUBLIC_PAYPAL_FUNCTIONS_BASE_URL are correctly set.
                     </AlertDescription>
                 </Alert>
             )}
