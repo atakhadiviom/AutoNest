@@ -92,6 +92,15 @@ export function AuthForm({ mode }: AuthFormProps) {
       }
     } catch (error: any) {
       console.error("AuthForm submission error:", error.message);
+      // General error toast already handled by AuthContext for most cases
+      // Only show specific if not already covered
+      if (error.message && !error.message.includes("Firebase:")) {
+         toast({
+            title: mode === "login" ? "Login Error" : "Signup Error",
+            description: error.message || "An unexpected error occurred.",
+            variant: "destructive",
+          });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -199,9 +208,9 @@ export function AuthForm({ mode }: AuthFormProps) {
           </Form>
 
           <div className="my-6 flex items-center">
-            <Separator className="flex-grow" />
+            <Separator className="flex-1" />
             <span className="mx-4 text-xs uppercase text-muted-foreground">Or continue with</span>
-            <Separator className="flex-grow" />
+            <Separator className="flex-1" />
           </div>
 
           <Button
