@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import Link from "next/link";
-import { useRouter } from "next/navigation"; 
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -35,13 +35,13 @@ const signupSchema = formSchemaBase.extend({
   confirmPassword: z.string().min(6, { message: "Password must be at least 6 characters." }),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match.",
-  path: ["confirmPassword"], 
+  path: ["confirmPassword"],
 });
 
 export function AuthForm({ mode }: AuthFormProps) {
   const { login, signup } = useAuth();
-  const { toast } = useToast(); 
-  const router = useRouter(); 
+  const { toast } = useToast();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -194,6 +194,15 @@ export function AuthForm({ mode }: AuthFormProps) {
                 </Link>
               </>
             )}
+          </div>
+          <div className="mt-4 text-center text-xs text-muted-foreground space-x-2">
+            <Link href="/privacy-policy" className="hover:text-primary hover:underline">
+              Privacy Policy
+            </Link>
+            <span>&bull;</span>
+            <Link href="/user-agreement" className="hover:text-primary hover:underline">
+              User Agreement
+            </Link>
           </div>
         </CardContent>
       </Card>
