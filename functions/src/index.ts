@@ -149,9 +149,13 @@ app.post("/create-order", async (req: Request, res: Response) => {
     functions.logger.info("PayPal order created (REST):", orderData);
     return res.status(200).json({orderID: orderData.id});
   } catch (err: any) {
-    functions.logger.error("Exception in /create-order:", err.message, err);
-    return res.status(500)
-      .json({error: err.message || "Server error creating order."});
+    functions.logger.error(
+      "Exception in /create-order:",
+      err.message,
+      err,
+    );
+    const errMsg = err.message || "Server error creating order.";
+    return res.status(500).json({error: errMsg});
   }
 });
 
@@ -193,11 +197,17 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       );
       const errorDetail = captureData.details?.[0];
       if (errorDetail?.issue === "INSTRUMENT_DECLINED") {
-        return res.status(402).json({
-          error: "Payment method declined by PayPal.",
+        const instrumentErrorDetails = errorDetail;
+        functions.logger.warn(
+          `Instrument declined for order ${orderID}.`,
+          instrumentErrorDetails,
+        );
+        const responsePayload = {
+          error: "PayPal: Instrument Declined.",
           isInstrumentDeclined: true,
-          details: errorDetail,
-        });
+          details: instrumentErrorDetails,
+        };
+        return res.status(402).json(responsePayload);
       }
       const errorMsg = errorDetail?.description ||
         `Failed to capture payment. Status: ${response.status}`;
@@ -237,9 +247,18 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       });
     }
   } catch (err: any) {
-    functions.logger.error("Exception in /capture-payment:", err.message, err);
-    return res.status(500)
-      .json({error: err.message || "Server error capturing payment."});
+    const paypalAPIDetails = err.result ? err.result.details : "No details";
+    const errorLogDetails = {
+      message: err.message,
+      statusCode: err.statusCode,
+      paypalAPIDetails,
+    };
+    functions.logger.error(
+      `Capture failed for ${orderID}.`,
+      errorLogDetails,
+    );
+    const errMsg = err.message || "Server error capturing payment.";
+    return res.status(500).json({error: errMsg});
   }
 });
 
