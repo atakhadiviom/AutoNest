@@ -8,7 +8,7 @@
 
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-import type {Request, Response} from "express";
+import type {Request, Response} from "express"; // Explicitly import types
 import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
@@ -49,10 +49,10 @@ const getPaypalCredentials = () => {
                        process.env.PAYPAL_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    functions.logger.error(
-      "PayPal Client ID or Secret is missing in config.",
-    );
-    throw new Error("PayPal API credentials not configured.");
+    const errorMsg = "PayPal CLIENT_ID or SECRET missing in config.";
+    functions.logger.error(errorMsg);
+    throw new Error(errorMsg +
+      " Check Function config or .env if emulating.");
   }
   return {clientId, clientSecret};
 };
@@ -232,15 +232,20 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
         });
       } catch (dbError: any) {
         functions.logger.error(
-          `Payment captured for order ${orderID}, but DB update failed for ${userUID}:`,
+          `Payment captured for order ${orderID}, ` +
+          `but DB update failed for ${userUID}:`,
           dbError,
         );
+        // Critical: Payment taken, but credits not granted.
+        // Respond with an error to the client, but include PayPal order ID
+        // so it can be reconciled manually if necessary.
         return res.status(500).json({
           error: "Payment successful, but credit update failed. Contact support.",
           paypalOrderId: orderID,
         });
       }
     } else {
+      // Handle other PayPal capture statuses (e.g., PENDING, FAILED)
       functions.logger.warn(
         `Capture status for ${orderID} is ${captureData.status}.`,
       );
@@ -250,6 +255,8 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       });
     }
   } catch (err: any) {
+    // This catches errors from getPaypalAccessToken, fetch to PayPal,
+    // or JSON parsing errors.
     const paypalAPIDetails = err.result ? err.result.details : "No details";
     const errorLogDetails = {
       message: err.message,
