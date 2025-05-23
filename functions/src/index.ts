@@ -1,3 +1,4 @@
+
 /**
  * Firebase Cloud Functions for PayPal Integration using direct REST API calls.
  *
@@ -48,11 +49,13 @@ const getPaypalCredentials = () => {
   const clientSecret = functions.config().paypal?.client_secret ||
                        process.env.PAYPAL_CLIENT_SECRET;
 
+  const errorMsg = "PayPal API credentials (client ID or secret) or " +
+                   "environment not configured. Check Function config or " +
+                   ".env for emulation.";
+
   if (!clientId || !clientSecret) {
-    const errorMsg = "PayPal CLIENT_ID or SECRET missing in config.";
     functions.logger.error(errorMsg);
-    throw new Error(errorMsg +
-      " Check Function config or .env if emulating.");
+    throw new Error(errorMsg);
   }
   return {clientId, clientSecret};
 };
@@ -152,10 +155,15 @@ app.post("/create-order", async (req: Request, res: Response) => {
     functions.logger.info("PayPal order created (REST):", orderData);
     return res.status(200).json({orderID: orderData.id});
   } catch (err: any) {
+    const paypalAPIDetails = err.result ? err.result.details : "No details";
+    const errorLogDetails = {
+      message: err.message,
+      statusCode: err.statusCode,
+      paypalAPIDetails,
+    };
     functions.logger.error(
       "Exception in /create-order:",
-      err.message,
-      err,
+      errorLogDetails,
     );
     const errMsg = err.message || "Server error creating order.";
     return res.status(500).json({error: errMsg});
@@ -240,7 +248,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
         // Respond with an error to the client, but include PayPal order ID
         // so it can be reconciled manually if necessary.
         return res.status(500).json({
-          error: "Payment successful, but credit update failed. Contact support.",
+          error: "Payment success, but credit update failed. Contact support.",
           paypalOrderId: orderID,
         });
       }
@@ -255,20 +263,20 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       });
     }
   } catch (err: any) {
-    // This catches errors from getPaypalAccessToken, fetch to PayPal,
-    // or JSON parsing errors.
-    const paypalAPIDetails = err.result ? err.result.details : "No details";
+    const paypalDetails = err.result ? err.result.details : "No details";
     const errorLogDetails = {
       message: err.message,
       statusCode: err.statusCode,
-      paypalAPIDetails,
+      paypalAPIDetails: paypalDetails,
     };
     functions.logger.error(
       `Capture failed for ${orderID}.`,
       errorLogDetails,
     );
     const errMsg = err.message || "Server error capturing payment.";
-    return res.status(500).json({error: errMsg});
+    return res.status(500).json({
+      error: errMsg,
+    });
   }
 });
 
