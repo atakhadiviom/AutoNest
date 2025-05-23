@@ -1,16 +1,10 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# Firebase
-.firebase
-firebase-debug.log
-firebase-debug.*.log
-*.local
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
 /node_modules
 /.pnp
 .pnp.js
-/functions/node_modules
 
 # testing
 /coverage
@@ -30,30 +24,42 @@ firebase-debug.*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+firebase-debug.log*
+firebase-debug.*.log*
+*-debug.log
 
 # local env files
-.env
+.env.local
 .env*.local
-!.env.sample
-/functions/.env
+.env
 
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-# PayPal SDK
-paypal-checkout.js
-
-# Sensitive files & Outputs
+# Log files
 *.log
-*secret*.json
-*private_key*.json
+logs
+*.log.*
+
+# Firebase
 *service_account*.json
-autonest-vn4w5-firebase-adminsdk-fbsvc-96861eb71c.json # Explicitly ignore this specific service account key
-*.p12
-*.key
-*.sublime-project
-*.sublime-workspace
+*.firebase_secret.json
+autonest-vn4w5-firebase-adminsdk-fbsvc-96861eb71c.json
+
+# Editor directories and files
+.vscode
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# System files
+.AppleDouble
+.LSOverride
+
+# Output files
+dist
+dist-ssr
+*.patch
+/functions/lib
+/functions/node_modules
+/functions/.env
