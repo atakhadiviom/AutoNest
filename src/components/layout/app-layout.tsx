@@ -10,7 +10,7 @@ import { FullPageLoader } from "@/components/ui/loader";
 import Link from "next/link";
 
 // Define paths that should be accessible without authentication
-const PUBLIC_PATHS = ['/privacy-policy', '/user-agreement'];
+const PUBLIC_PATHS = ['/privacy-policy', '/user-agreement', '/blog/building-autonest'];
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
