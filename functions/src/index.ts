@@ -309,33 +309,11 @@ export const sendWelcomeEmail = functions.auth.user().onCreate(async (user) => {
     return;
   }
 
-  // --- TODO: Implement Actual Email Sending Here ---
-  // 1. Choose an Email Service Provider (ESP) like SendGrid, Mailgun, Amazon SES.
-  //    - SendGrid: Popular, good free tier.
-  //    - Mailgun: Developer-focused, good API.
-  //    - Amazon SES: Cost-effective at scale, steeper learning curve.
-  //
-  // 2. Sign up for the ESP and authenticate your domain `autonest.site`.
-  //    This is crucial for deliverability and to send emails *from* @autonest.site.
-  //    This usually involves adding DNS records (SPF, DKIM, CNAME, TXT)
-  //    to your domain provider's (e.g., Namecheap) settings. The ESP will guide you.
-  //
-  // 3. Install the ESP's Node.js SDK in this `functions` directory:
-  //    Example for SendGrid: `npm install @sendgrid/mail` (and add it to functions/package.json)
-  //
-  // 4. Securely store your ESP API key using Firebase Function Configuration:
-  //    In your terminal (from your project root, not inside functions folder):
-  //    `firebase functions:config:set emailservice.apikey="YOUR_ESP_API_KEY"`
-  //    `firebase functions:config:set emailconfig.sender="welcome@autonest.site"` (or any sender you want)
-  //    (Replace `emailservice` with your ESP's name, e.g., `sendgrid` or `mailgun`)
-  //    Then deploy the config: `firebase deploy --only functions:config`
-  //
-  // 5. Replace the logging below with code to use the ESP's SDK.
-
   // Retrieve configured sender and API key
-  const SENDER_EMAIL = functions.config().emailconfig?.sender ||
-                       "noreply@autonest.site"; // Fallback sender
-  // const ESP_API_KEY = functions.config().sendgrid?.apikey; // Example for SendGrid
+  const SENDER_EMAIL_CONFIG = functions.config().emailconfig?.sender;
+  const ESP_API_KEY = functions.config().emailservice?.apikey;
+
+  const actualSender = SENDER_EMAIL_CONFIG || "noreply@autonest.site";
 
   const subject = `Welcome to AutoNest, ${displayName}!`;
   const body = `Hi ${displayName},\n\n` +
@@ -344,54 +322,80 @@ export const sendWelcomeEmail = functions.auth.user().onCreate(async (user) => {
                "today.\n\n" +
                "Best regards,\nThe AutoNest Team";
 
-  functions.logger.info(
-    `Simulating sending welcome email to: ${email} from ${SENDER_EMAIL}`,
-    {
-      userId: user.uid,
-      emailDetails: {
-        to: email,
-        from: SENDER_EMAIL,
-        subject: subject,
-        body: body,
-      },
-    },
-  );
+  if (!ESP_API_KEY || !SENDER_EMAIL_CONFIG) {
+    let warningMessage = "[Email Service] Welcome email notifications are currently SIMULATED. ";
+    if (!ESP_API_KEY) {
+      warningMessage += "Email Service API Key (emailservice.apikey) is NOT configured. " +
+                        "Set it via `firebase functions:config:set emailservice.apikey=\"YOUR_KEY\"`. ";
+    }
+    if (!SENDER_EMAIL_CONFIG) {
+      warningMessage += `Sender email (emailconfig.sender) is NOT configured (using fallback ${actualSender}). ` +
+                        "Set it via `firebase functions:config:set emailconfig.sender=\"welcome@autonest.site\"`. ";
+    }
+    warningMessage += "Implement your ESP SDK integration for actual email sending.";
+    functions.logger.warn(warningMessage, {userId: user.uid});
 
-  // Example using SendGrid (conceptual - uncomment and adapt after setup):
-  //
-  // if (!ESP_API_KEY) {
-  //   functions.logger.error(
-  //      "SendGrid API Key (or your ESP's API key) not configured." +
-  //      " Set it via firebase functions:config:set sendgrid.apikey=..."
-  //   );
-  //   return; // Or throw an error
-  // }
-  //
-  // const sgMail = require('@sendgrid/mail');
-  // sgMail.setApiKey(ESP_API_KEY);
-  //
-  // const msg = {
-  //   to: email,
-  //   from: {
-  //      email: SENDER_EMAIL, // Use the configured sender email
-  //      name: "The AutoNest Team" // Optional sender name
-  //   },
-  //   subject: subject,
-  //   text: body,
-  //   // html: `<p>Hi ${displayName},</p><p>Welcome to AutoNest! ...</p>`, // Optional HTML content
-  // };
-  //
-  // try {
-  //   await sgMail.send(msg);
-  //   functions.logger.info(`Welcome email successfully sent to ${email} via SendGrid.`);
-  // } catch (error: any) {
-  //   functions.logger.error(
-  //      `Error sending welcome email to ${email} via SendGrid:`, error
-  //   );
-  //   if (error.response) {
-  //     functions.logger.error(error.response.body);
-  //   }
-  // }
+    // Log simulation details
+    functions.logger.info(
+      `SIMULATED Welcome Email to: ${email} from ${actualSender}`,
+      {
+        userId: user.uid,
+        emailDetails: { to: email, from: actualSender, subject, body },
+      }
+    );
+  } else {
+    // API Key AND Sender ARE configured. Actual sending logic would go here.
+    functions.logger.info(
+      "[Email Service] Email Service API Key and Sender ARE configured. " +
+      `Attempting to send welcome email to ${email} from ${actualSender}. ` +
+      "(Actual ESP SDK integration below needs to be implemented/uncommented by the user)."
+    );
 
+    // For now, still log simulation as a fallback until user implements actual sending code.
+    // This block should ideally be replaced by the actual email sending logic.
+    functions.logger.info(
+      `[Email Service] Placeholder for actual email send to: ${email} from ${actualSender}. ` +
+      "If actual sending code is implemented, this simulation log can be removed.",
+      {
+        userId: user.uid,
+        emailDetails: { to: email, from: actualSender, subject, body },
+      }
+    );
+
+    // ----- EXAMPLE: Actual ESP SDK Integration (e.g., SendGrid) -----
+    // ----- USER ACTION REQUIRED: Install SDK, uncomment, and adapt -----
+    /*
+    // 1. In functions directory: npm install @sendgrid/mail --save
+    // 2. Ensure 'emailservice.apikey' in Firebase config is your SendGrid API key.
+    // 3. Ensure 'emailconfig.sender' in Firebase config is your verified SendGrid sender.
+
+    // const sgMail = require('@sendgrid/mail'); // Ideally import at the top of the file
+    // sgMail.setApiKey(ESP_API_KEY);
+    //
+    // const msg = {
+    //   to: email, // Recipient
+    //   from: {   // Sender
+    //     email: SENDER_EMAIL_CONFIG, // Use the configured sender email
+    //     name: "The AutoNest Team" // Optional sender name
+    //   },
+    //   subject: subject,
+    //   text: body,
+    //   // html: `<p>Hi ${displayName},</p><p>Welcome to AutoNest! ...</p>`, // Optional
+    // };
+    //
+    // try {
+    //   await sgMail.send(msg);
+    //   functions.logger.info(`[Email Service] Welcome email successfully SENT to ${email} via SendGrid.`);
+    // } catch (error: any) {
+    //   functions.logger.error(
+    //      `[Email Service] Error sending welcome email to ${email} via SendGrid:`, error
+    //   );
+    //   if (error.response) {
+    //     functions.logger.error("[Email Service] SendGrid error response body:", error.response.body);
+    //   }
+    // }
+    */
+    // ----- END EXAMPLE -----
+  }
   return null; // Indicate function completion.
 });
