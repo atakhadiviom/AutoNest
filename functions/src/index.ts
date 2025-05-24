@@ -1,12 +1,14 @@
 
 /**
- * Firebase Cloud Functions for PayPal Integration using direct REST API calls.
+ * Firebase Cloud Functions.
  *
- * These functions handle server-side interactions with PayPal,
- * such as creating orders and capturing payments, and securely
- * updating user credits in Firestore.
- *
- * Also includes a trigger for sending a simulated welcome email on new user signup.
+ * This file includes:
+ * - paypalAPI: An Express app for handling PayPal REST API interactions
+ *   (creating orders, capturing payments) and securely updating user credits
+ *   in Firestore.
+ * - helloWorld: A simple test function.
+ * - sendWelcomeEmail: An Auth trigger that attempts to send a welcome email
+ *   to new users via MailerSend.
  */
 
 import * as functions from "firebase-functions";
@@ -38,7 +40,8 @@ app.use(bodyParser.json()); // Parse JSON request bodies
 
 // --- PayPal API Configuration ---
 const getPaypalApiBaseUrl = (): string => {
-  // For deployed functions, prefer Firebase config. Fallback to process.env for local.
+  // For deployed functions, prefer Firebase config.
+  // Fallback to process.env for local.
   const env = functions.config().paypal?.environment ||
               process.env.PAYPAL_ENVIRONMENT;
   if (env && env.toLowerCase() === "live") {
@@ -48,18 +51,18 @@ const getPaypalApiBaseUrl = (): string => {
 };
 
 const getPaypalCredentials = () => {
-  // For deployed functions, prefer Firebase config. Fallback to process.env for local.
+  // For deployed functions, prefer Firebase config.
+  // Fallback to process.env for local.
   const clientId = functions.config().paypal?.client_id ||
                    process.env.PAYPAL_CLIENT_ID;
   const clientSecret = functions.config().paypal?.client_secret ||
                        process.env.PAYPAL_CLIENT_SECRET;
 
   const errorMsg =
-    "PayPal API credentials (client ID or secret) or " +
-    "environment not configured. For deployed functions, use " +
-    "`firebase functions:config:set paypal.client_id=... " +
+    "PayPal API credentials or environment not configured. " +
+    "For deployed: `firebase functions:config:set paypal.client_id=... " +
     "paypal.client_secret=... paypal.environment=...`. " +
-    "For local emulation, check functions/.env file.";
+    "For local: check functions/.env.";
 
   if (!clientId || !clientSecret) {
     functions.logger.error(errorMsg);
@@ -309,93 +312,94 @@ export const sendWelcomeEmail = functions.auth.user().onCreate(async (user) => {
     return;
   }
 
-  // Retrieve configured sender and API key
-  const SENDER_EMAIL_CONFIG = functions.config().emailconfig?.sender;
-  const ESP_API_KEY = functions.config().emailservice?.apikey;
-
-  const actualSender = SENDER_EMAIL_CONFIG || "noreply@autonest.site";
+  // Retrieve MailerSend API token and sender email from Firebase config
+  const MAILERSEND_API_TOKEN = functions.config().mailersend?.apitoken;
+  const SENDER_EMAIL = functions.config().mailersend?.senderemail;
 
   const subject = `Welcome to AutoNest, ${displayName}!`;
-  const body = `Hi ${displayName},\n\n` +
+  const textContent = `Hi ${displayName},\n\n` +
                "Welcome to AutoNest! We're thrilled to have you on board.\n\n" +
                "Explore your dashboard and start automating your workflows " +
                "today.\n\n" +
                "Best regards,\nThe AutoNest Team";
+  const htmlContent = `<p>Hi ${displayName},</p>` +
+                      "<p>Welcome to AutoNest! We're thrilled to have you on board.</p>" +
+                      "<p>Explore your dashboard and start automating your workflows today.</p>" +
+                      "<p>Best regards,<br>The AutoNest Team</p>";
 
-  if (!ESP_API_KEY || !SENDER_EMAIL_CONFIG) {
-    let warningMessage = "[Email Service] Welcome email notifications are currently SIMULATED. ";
-    if (!ESP_API_KEY) {
-      warningMessage += "Email Service API Key (emailservice.apikey) is NOT configured. " +
-                        "Set it via `firebase functions:config:set emailservice.apikey=\"YOUR_KEY\"`. ";
+  if (!MAILERSEND_API_TOKEN || !SENDER_EMAIL) {
+    let warningMessage = "[MailerSend] Welcome email notifications are currently SIMULATED. ";
+    if (!MAILERSEND_API_TOKEN) {
+      warningMessage += "MailerSend API Token (mailersend.apitoken) is NOT configured. " +
+                        "Set it via `firebase functions:config:set mailersend.apitoken=\"YOUR_TOKEN\"`. ";
     }
-    if (!SENDER_EMAIL_CONFIG) {
-      warningMessage += `Sender email (emailconfig.sender) is NOT configured (using fallback ${actualSender}). ` +
-                        "Set it via `firebase functions:config:set emailconfig.sender=\"welcome@autonest.site\"`. ";
+    if (!SENDER_EMAIL) {
+      warningMessage += "Sender email (mailersend.senderemail) is NOT configured. " +
+                        "Set it via `firebase functions:config:set mailersend.senderemail=\"welcome@autonest.site\"`. ";
     }
-    warningMessage += "Implement your ESP SDK integration for actual email sending.";
+    warningMessage += "Ensure your domain autonest.site is verified with MailerSend.";
     functions.logger.warn(warningMessage, {userId: user.uid});
 
     // Log simulation details
     functions.logger.info(
-      `SIMULATED Welcome Email to: ${email} from ${actualSender}`,
+      `SIMULATED Welcome Email to: ${email} from ${SENDER_EMAIL || "config_missing@autonest.site"} via MailerSend`,
       {
         userId: user.uid,
-        emailDetails: { to: email, from: actualSender, subject, body },
-      }
+        emailDetails: {
+          to: email,
+          from: SENDER_EMAIL || "config_missing@autonest.site",
+          subject,
+          text: textContent,
+          html: htmlContent,
+        },
+      },
     );
-  } else {
-    // API Key AND Sender ARE configured. Actual sending logic would go here.
-    functions.logger.info(
-      "[Email Service] Email Service API Key and Sender ARE configured. " +
-      `Attempting to send welcome email to ${email} from ${actualSender}. ` +
-      "(Actual ESP SDK integration below needs to be implemented/uncommented by the user)."
-    );
-
-    // For now, still log simulation as a fallback until user implements actual sending code.
-    // This block should ideally be replaced by the actual email sending logic.
-    functions.logger.info(
-      `[Email Service] Placeholder for actual email send to: ${email} from ${actualSender}. ` +
-      "If actual sending code is implemented, this simulation log can be removed.",
-      {
-        userId: user.uid,
-        emailDetails: { to: email, from: actualSender, subject, body },
-      }
-    );
-
-    // ----- EXAMPLE: Actual ESP SDK Integration (e.g., SendGrid) -----
-    // ----- USER ACTION REQUIRED: Install SDK, uncomment, and adapt -----
-    /*
-    // 1. In functions directory: npm install @sendgrid/mail --save
-    // 2. Ensure 'emailservice.apikey' in Firebase config is your SendGrid API key.
-    // 3. Ensure 'emailconfig.sender' in Firebase config is your verified SendGrid sender.
-
-    // const sgMail = require('@sendgrid/mail'); // Ideally import at the top of the file
-    // sgMail.setApiKey(ESP_API_KEY);
-    //
-    // const msg = {
-    //   to: email, // Recipient
-    //   from: {   // Sender
-    //     email: SENDER_EMAIL_CONFIG, // Use the configured sender email
-    //     name: "The AutoNest Team" // Optional sender name
-    //   },
-    //   subject: subject,
-    //   text: body,
-    //   // html: `<p>Hi ${displayName},</p><p>Welcome to AutoNest! ...</p>`, // Optional
-    // };
-    //
-    // try {
-    //   await sgMail.send(msg);
-    //   functions.logger.info(`[Email Service] Welcome email successfully SENT to ${email} via SendGrid.`);
-    // } catch (error: any) {
-    //   functions.logger.error(
-    //      `[Email Service] Error sending welcome email to ${email} via SendGrid:`, error
-    //   );
-    //   if (error.response) {
-    //     functions.logger.error("[Email Service] SendGrid error response body:", error.response.body);
-    //   }
-    // }
-    */
-    // ----- END EXAMPLE -----
+    return null;
   }
+
+  // Configuration is present, attempt to send email via MailerSend
+  functions.logger.info(
+    `[MailerSend] Attempting to send welcome email to ${email} from ${SENDER_EMAIL}.`,
+  );
+
+  const mailerSendPayload = {
+    from: {email: SENDER_EMAIL},
+    to: [{email: email}],
+    subject: subject,
+    text: textContent,
+    html: htmlContent,
+  };
+
+  try {
+    const response = await fetch("https://api.mailersend.com/v1/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "Authorization": `Bearer ${MAILERSEND_API_TOKEN}`,
+      },
+      body: JSON.stringify(mailerSendPayload),
+    });
+
+    if (response.ok) {
+      // status 202 Accepted is a success for MailerSend
+      functions.logger.info(
+        `[MailerSend] Welcome email successfully SENT to ${email}. Status: ${response.status}`,
+      );
+    } else {
+      // Attempt to parse error response from MailerSend
+      const errorBody = await response.text();
+      functions.logger.error(
+        `[MailerSend] Error sending welcome email to ${email}. Status: ${response.status}`,
+        {errorBody, responseHeaders: response.headers},
+      );
+    }
+  } catch (error: any) {
+    functions.logger.error(
+      `[MailerSend] Exception sending welcome email to ${email}:`,
+      error,
+    );
+  }
+
   return null; // Indicate function completion.
 });
