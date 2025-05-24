@@ -192,7 +192,7 @@ export default function LandingPage() {
                   </p>
                   <Button asChild>
                     <Link href="/blog/building-autonest">
-                      Read More <ArrowRight className="ml-2 h-4 w-4" />
+                      Go to the blog post page <ArrowRight className="ml-2 h-4 w-4" />
                     </Link>
                   </Button>
                 </CardContent>
@@ -237,3 +237,4 @@ export default function LandingPage() {
     </div>
   );
 }
+
