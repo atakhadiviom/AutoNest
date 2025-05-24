@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect } from 'react';
@@ -14,7 +15,7 @@ export default function HomePage() {
       if (user) {
         router.replace('/dashboard');
       } else {
-        router.replace('/login');
+        router.replace('/landing'); // Changed from /login to /landing
       }
     }
   }, [user, loading, router]);
