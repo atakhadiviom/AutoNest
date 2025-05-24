@@ -3,8 +3,8 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Hexagon, Zap, Brain, DollarSign, CheckCircle, ArrowRight, TrendingUp, Edit3, ShieldCheck } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Hexagon, Zap, Brain, DollarSign, CheckCircle, ArrowRight, TrendingUp, Edit3, ShieldCheck, BookOpen } from "lucide-react";
 import Image from "next/image";
 
 export default function LandingPage() {
@@ -146,7 +146,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Features At a Glance (Simplified from previous thought) */}
+        {/* Features At a Glance */}
          <section className="py-16 md:py-24 bg-muted/40">
           <div className="container text-center">
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-6">
@@ -162,6 +162,44 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* Blog Post Section */}
+        <section className="py-16 md:py-24 bg-background">
+          <div className="container">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-bold text-foreground">
+                From Our Blog
+              </h2>
+              <p className="text-lg text-muted-foreground mt-2">
+                Insights and updates from the AutoNest team.
+              </p>
+            </div>
+            <div className="flex justify-center">
+              <Card className="max-w-2xl w-full shadow-lg hover:shadow-xl transition-shadow bg-card">
+                <CardHeader>
+                  <div className="flex items-center mb-2">
+                    <BookOpen className="h-7 w-7 text-primary mr-3" />
+                    <CardTitle className="text-2xl font-semibold text-card-foreground">
+                      Building and Launching AutoNest: Our Journey
+                    </CardTitle>
+                  </div>
+                  <CardDescription className="text-muted-foreground">
+                    A look behind the scenes at how AutoNest was developed, from initial idea to deployed application.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground text-sm mb-4">
+                    Dive into the conceptualization, development sprints, key features implementation like AI tools, billing, admin dashboards, and the lessons we learned along the way.
+                  </p>
+                  <Button asChild>
+                    <Link href="/blog/building-autonest">
+                      Read More <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </section>
 
         {/* Final CTA Section */}
         <section className="py-20 md:py-32 text-center bg-primary text-primary-foreground">
