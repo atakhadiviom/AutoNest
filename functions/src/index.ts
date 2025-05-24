@@ -345,12 +345,14 @@ export const sendWelcomeEmail = functions.auth.user().onCreate(async (user) => {
                          " currently SIMULATED. ";
     if (!MAILERSEND_API_TOKEN) {
       warningMessage += "MailerSend API Token (mailersend.apitoken) is NOT " +
-                        "configured. Set it via `firebase functions:config:set " +
+                        "configured. ";
+      warningMessage += "Set it via `firebase functions:config:set " +
                         "mailersend.apitoken=\"YOUR_TOKEN\"`. ";
     }
     if (!SENDER_EMAIL) {
       warningMessage += "Sender email (mailersend.senderemail) is NOT " +
-                        "configured. Set it via `firebase functions:config:set " +
+                        "configured. ";
+      warningMessage += "Set it via `firebase functions:config:set " +
                         "mailersend.senderemail=\"welcome@autonest.site\"`. ";
     }
     warningMessage += "Ensure your domain autonest.site is verified with " +
