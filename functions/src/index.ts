@@ -323,26 +323,31 @@ export const sendWelcomeEmail = functions.auth.user().onCreate(async (user) => {
                "today.\n\n" +
                "Best regards,\nThe AutoNest Team";
   const htmlContent = `<p>Hi ${displayName},</p>` +
-                      "<p>Welcome to AutoNest! We're thrilled to have you on board.</p>" +
-                      "<p>Explore your dashboard and start automating your workflows today.</p>" +
-                      "<p>Best regards,<br>The AutoNest Team</p>";
+    "<p>Welcome to AutoNest! We're thrilled to have you on board.</p>" +
+    "<p>Explore your dashboard and start automating your workflows today.</p>" +
+    "<p>Best regards,<br>The AutoNest Team</p>";
 
   if (!MAILERSEND_API_TOKEN || !SENDER_EMAIL) {
-    let warningMessage = "[MailerSend] Welcome email notifications are currently SIMULATED. ";
+    let warningMessage = "[MailerSend] Welcome email notifications are" +
+                         " currently SIMULATED. ";
     if (!MAILERSEND_API_TOKEN) {
-      warningMessage += "MailerSend API Token (mailersend.apitoken) is NOT configured. " +
-                        "Set it via `firebase functions:config:set mailersend.apitoken=\"YOUR_TOKEN\"`. ";
+      warningMessage += "MailerSend API Token (mailersend.apitoken) is NOT " +
+                        "configured. Set it via `firebase functions:config:set " +
+                        "mailersend.apitoken=\"YOUR_TOKEN\"`. ";
     }
     if (!SENDER_EMAIL) {
-      warningMessage += "Sender email (mailersend.senderemail) is NOT configured. " +
-                        "Set it via `firebase functions:config:set mailersend.senderemail=\"welcome@autonest.site\"`. ";
+      warningMessage += "Sender email (mailersend.senderemail) is NOT " +
+                        "configured. Set it via `firebase functions:config:set " +
+                        "mailersend.senderemail=\"welcome@autonest.site\"`. ";
     }
-    warningMessage += "Ensure your domain autonest.site is verified with MailerSend.";
+    warningMessage += "Ensure your domain autonest.site is verified with " +
+                      "MailerSend.";
     functions.logger.warn(warningMessage, {userId: user.uid});
 
     // Log simulation details
     functions.logger.info(
-      `SIMULATED Welcome Email to: ${email} from ${SENDER_EMAIL || "config_missing@autonest.site"} via MailerSend`,
+      `SIMULATED Welcome Email to: ${email} from ` +
+      `${SENDER_EMAIL || "config_missing@autonest.site"} via MailerSend`,
       {
         userId: user.uid,
         emailDetails: {
@@ -359,7 +364,8 @@ export const sendWelcomeEmail = functions.auth.user().onCreate(async (user) => {
 
   // Configuration is present, attempt to send email via MailerSend
   functions.logger.info(
-    `[MailerSend] Attempting to send welcome email to ${email} from ${SENDER_EMAIL}.`,
+    `[MailerSend] Attempting to send welcome email to ${email} ` +
+    `from ${SENDER_EMAIL}.`,
   );
 
   const mailerSendPayload = {
@@ -384,13 +390,15 @@ export const sendWelcomeEmail = functions.auth.user().onCreate(async (user) => {
     if (response.ok) {
       // status 202 Accepted is a success for MailerSend
       functions.logger.info(
-        `[MailerSend] Welcome email successfully SENT to ${email}. Status: ${response.status}`,
+        `[MailerSend] Welcome email successfully SENT to ${email}. ` +
+        `Status: ${response.status}`,
       );
     } else {
       // Attempt to parse error response from MailerSend
       const errorBody = await response.text();
       functions.logger.error(
-        `[MailerSend] Error sending welcome email to ${email}. Status: ${response.status}`,
+        `[MailerSend] Error sending welcome email to ${email}. ` +
+        `Status: ${response.status}`,
         {errorBody, responseHeaders: response.headers},
       );
     }
