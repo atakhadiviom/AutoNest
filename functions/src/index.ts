@@ -313,20 +313,33 @@ export const sendWelcomeEmail = functions.auth.user().onCreate(async (user) => {
   }
 
   // Retrieve MailerSend API token and sender email from Firebase config
+  // For MailerSend:
+  // functions.config().mailersend.apitoken
+  // functions.config().mailersend.senderemail
+  // For SendGrid (example):
+  // functions.config().sendgrid.apikey
+  // functions.config().sendgrid.sender
+  // Choose one service and configure its specific keys.
+
   const MAILERSEND_API_TOKEN = functions.config().mailersend?.apitoken;
   const SENDER_EMAIL = functions.config().mailersend?.senderemail;
+  // Example for SendGrid:
+  // const SENDGRID_API_KEY = functions.config().sendgrid?.apikey;
+  // const SENDER_EMAIL_SENDGRID = functions.config().sendgrid?.sender;
+
 
   const subject = `Welcome to AutoNest, ${displayName}!`;
   const textContent = `Hi ${displayName},\n\n` +
-               "Welcome to AutoNest! We're thrilled to have you on board.\n\n" +
-               "Explore your dashboard and start automating your workflows " +
-               "today.\n\n" +
-               "Best regards,\nThe AutoNest Team";
+    "Welcome to AutoNest! We're thrilled to have you on board.\n\n" +
+    "Explore your dashboard and start automating your workflows " +
+    "today.\n\n" +
+    "Best regards,\nThe AutoNest Team";
   const htmlContent = `<p>Hi ${displayName},</p>` +
     "<p>Welcome to AutoNest! We're thrilled to have you on board.</p>" +
     "<p>Explore your dashboard and start automating your workflows today.</p>" +
     "<p>Best regards,<br>The AutoNest Team</p>";
 
+  // --- MailerSend Integration ---
   if (!MAILERSEND_API_TOKEN || !SENDER_EMAIL) {
     let warningMessage = "[MailerSend] Welcome email notifications are" +
                          " currently SIMULATED. ";
@@ -345,14 +358,14 @@ export const sendWelcomeEmail = functions.auth.user().onCreate(async (user) => {
     functions.logger.warn(warningMessage, {userId: user.uid});
 
     // Log simulation details
+    const simulatedFrom = SENDER_EMAIL || "config_missing@autonest.site";
     functions.logger.info(
-      `SIMULATED Welcome Email to: ${email} from ` +
-      `${SENDER_EMAIL || "config_missing@autonest.site"} via MailerSend`,
+      `SIMULATED Welcome Email to: ${email} from ${simulatedFrom} via MailerSend`,
       {
         userId: user.uid,
         emailDetails: {
           to: email,
-          from: SENDER_EMAIL || "config_missing@autonest.site",
+          from: simulatedFrom,
           subject,
           text: textContent,
           html: htmlContent,
@@ -408,6 +421,60 @@ export const sendWelcomeEmail = functions.auth.user().onCreate(async (user) => {
       error,
     );
   }
+  // --- End MailerSend Integration ---
+
+  /*
+  // --- Example SendGrid Integration (Commented Out) ---
+  // 1. Install SendGrid SDK: `npm install @sendgrid/mail` in functions dir
+  // 2. Set API Key: `firebase functions:config:set sendgrid.apikey="YOUR_KEY"`
+  // 3. Set Sender: `firebase functions:config:set sendgrid.sender="verified@email.com"`
+  //
+  // if (!SENDGRID_API_KEY || !SENDER_EMAIL_SENDGRID) {
+  //   functions.logger.warn(
+  //      "[SendGrid] Welcome email notifications are SIMULATED. " +
+  //      "SendGrid API Key (sendgrid.apikey) or Sender Email " +
+  //      "(sendgrid.sender) is NOT configured. " +
+  //      "Set them via `firebase functions:config:set ...`"
+  //   );
+  //   // Log simulation details for SendGrid
+  //   functions.logger.info(
+  //     `SIMULATED Welcome Email (SendGrid) to: ${email} from ` +
+  //     `${SENDER_EMAIL_SENDGRID || "config_missing@example.com"}`,
+  //     {
+  //       userId: user.uid,
+  //       emailDetails: { to: email, subject, text: textContent, html: htmlContent },
+  //     }
+  //   );
+  //   return null;
+  // }
+  //
+  // functions.logger.info(
+  //    `[SendGrid] Attempting to send welcome email to ${email}`
+  // );
+  //
+  // const sgMail = require('@sendgrid/mail');
+  // sgMail.setApiKey(SENDGRID_API_KEY);
+  // const msg = {
+  //   to: email,
+  //   from: SENDER_EMAIL_SENDGRID, // Use the verified sender
+  //   subject: subject,
+  //   text: textContent,
+  //   html: htmlContent,
+  // };
+  //
+  // try {
+  //   await sgMail.send(msg);
+  //   functions.logger.info(`[SendGrid] Welcome email SENT to ${email}`);
+  // } catch (error: any) {
+  //   functions.logger.error(
+  //      `[SendGrid] Error sending welcome email to ${email}:`, error
+  //   );
+  //   if (error.response) {
+  //     functions.logger.error(error.response.body);
+  //   }
+  // }
+  // --- End SendGrid Integration ---
+  */
 
   return null; // Indicate function completion.
 });
