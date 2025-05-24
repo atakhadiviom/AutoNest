@@ -429,7 +429,6 @@ export const sendWelcomeEmail = functions.auth.user().onCreate(async (user) => {
   // --- Example SendGrid Integration (Commented Out) ---
   // 1. Install SendGrid SDK: `npm install @sendgrid/mail` in functions dir
   // 2. Set API Key: `firebase functions:config:set sendgrid.apikey="YOUR_KEY"`
-  // 3. Set Sender: `firebase functions:config:set sendgrid.sender="verified@email.com"`
   //
   // if (!SENDGRID_API_KEY || !SENDER_EMAIL_SENDGRID) {
   //   functions.logger.warn(
@@ -444,8 +443,6 @@ export const sendWelcomeEmail = functions.auth.user().onCreate(async (user) => {
   //     `${SENDER_EMAIL_SENDGRID || "config_missing@example.com"}`,
   //     {
   //       userId: user.uid,
-  //       emailDetails: { to: email, subject, text: textContent, html: htmlContent },
-  //     }
   //   );
   //   return null;
   // }
