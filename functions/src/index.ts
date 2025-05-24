@@ -406,21 +406,20 @@ export const sendWelcomeEmail = functions.auth.user().onCreate(async (user) => {
     if (response.ok) {
       // status 202 Accepted is a success for MailerSend
       functions.logger.info(
-        `[MailerSend] Welcome email successfully SENT to ${email}. ` +
+        `[MailerSend] Welcome email SENT to ${email}. ` +
         `Status: ${response.status}`,
       );
     } else {
       // Attempt to parse error response from MailerSend
       const errorBody = await response.text();
       functions.logger.error(
-        `[MailerSend] Error sending welcome email to ${email}. ` +
-        `Status: ${response.status}`,
+        `[MailerSend] Send err: ${email}, St: ${response.status}`,
         {errorBody, responseHeaders: response.headers},
       );
     }
   } catch (error: any) {
     functions.logger.error(
-      `[MailerSend] Exception sending welcome email to ${email}:`,
+      `[MailerSend] Excp sending email to ${email}:`,
       error,
     );
   }
