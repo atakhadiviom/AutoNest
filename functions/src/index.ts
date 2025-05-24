@@ -88,10 +88,10 @@ const getPaypalAccessToken = async (): Promise<string> => {
     functions.logger.error(
       "Failed to get PayPal access token:",
       response.status,
-      errorBody
+      errorBody,
     );
     throw new Error(
-      `PayPal token API request failed: ${response.status} ${errorBody}`
+      `PayPal token API request failed: ${response.status} ${errorBody}`,
     );
   }
 
@@ -153,7 +153,7 @@ app.post("/create-order", async (req: Request, res: Response) => {
       functions.logger.error(
         "Failed to create PayPal order via REST API:",
         response.status,
-        orderData
+        orderData,
       );
       const errorMsg = orderData.details?.[0]?.description ||
         `Failed to create order. Status: ${response.status}`;
@@ -171,7 +171,7 @@ app.post("/create-order", async (req: Request, res: Response) => {
     };
     functions.logger.error(
       "Exception in /create-order:",
-      errorLogDetails
+      errorLogDetails,
     );
     const errMsg = err.message || "Server error creating order.";
     return res.status(500).json({error: errMsg});
@@ -212,14 +212,14 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       functions.logger.error(
         `Failed to capture PayPal payment for order ${orderID}:`,
         response.status,
-        captureData
+        captureData,
       );
       const errorDetail = captureData.details?.[0];
       if (errorDetail?.issue === "INSTRUMENT_DECLINED") {
         const instrumentErrorDetails = errorDetail;
         functions.logger.warn(
           `Instrument declined for order ${orderID}.`,
-          instrumentErrorDetails
+          instrumentErrorDetails,
         );
         const responsePayload = {
           error: "PayPal: Instrument Declined.",
@@ -250,7 +250,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
         functions.logger.error(
           `Payment captured for order ${orderID}, ` +
           `but DB update failed for ${userUID}:`,
-          dbError
+          dbError,
         );
         return res.status(500).json({
           error: "Payment success, but credit update failed. Contact support.",
@@ -259,7 +259,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       }
     } else {
       functions.logger.warn(
-        `Capture status for ${orderID} is ${captureData.status}.`
+        `Capture status for ${orderID} is ${captureData.status}.`,
       );
       return res.status(400).json({
         error: `Payment capture status: ${captureData.status}.`,
@@ -275,7 +275,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
     };
     functions.logger.error(
       `Capture failed for ${orderID}.`,
-      errorLogDetails
+      errorLogDetails,
     );
     const errMsg = err.message || "Server error capturing payment.";
     return res.status(500).json({
@@ -292,7 +292,7 @@ export const helloWorld = functions.https.onRequest(
   (_req: Request, response: Response) => {
     functions.logger.info("Hello logs!", {structuredData: true});
     response.send("Hello from simplified Firebase!");
-  }
+  },
 );
 
 // --- New Auth Trigger for Welcome Email ---
@@ -304,26 +304,39 @@ export const sendWelcomeEmail = functions.auth.user().onCreate(async (user) => {
   if (!email) {
     functions.logger.error(
       "Cannot send welcome email: user email is missing.",
-      {userId: user.uid}
+      {userId: user.uid},
     );
     return;
   }
 
   // --- TODO: Implement Actual Email Sending Here ---
   // 1. Choose an Email Service Provider (ESP) like SendGrid, Mailgun, Amazon SES.
-  // 2. Sign up for the ESP and authenticate your domain `autonest.site`
-  //    (this involves adding DNS records like SPF, DKIM to your domain provider).
+  //    - SendGrid: Popular, good free tier.
+  //    - Mailgun: Developer-focused, good API.
+  //    - Amazon SES: Cost-effective at scale, steeper learning curve.
+  //
+  // 2. Sign up for the ESP and authenticate your domain `autonest.site`.
+  //    This is crucial for deliverability and to send emails *from* @autonest.site.
+  //    This usually involves adding DNS records (SPF, DKIM, CNAME, TXT)
+  //    to your domain provider's (e.g., Namecheap) settings. The ESP will guide you.
+  //
   // 3. Install the ESP's Node.js SDK in this `functions` directory:
-  //    Example for SendGrid: `npm install @sendgrid/mail`
-  //    (and add it to functions/package.json)
+  //    Example for SendGrid: `npm install @sendgrid/mail` (and add it to functions/package.json)
+  //
   // 4. Securely store your ESP API key using Firebase Function Configuration:
+  //    In your terminal (from your project root, not inside functions folder):
   //    `firebase functions:config:set emailservice.apikey="YOUR_ESP_API_KEY"`
-  //    `firebase functions:config:set emailconfig.sender="welcome@autonest.site"`
-  //    (Replace `emailservice` with your ESP's name, e.g., `sendgrid`)
+  //    `firebase functions:config:set emailconfig.sender="welcome@autonest.site"` (or any sender you want)
+  //    (Replace `emailservice` with your ESP's name, e.g., `sendgrid` or `mailgun`)
+  //    Then deploy the config: `firebase deploy --only functions:config`
+  //
   // 5. Replace the logging below with code to use the ESP's SDK.
 
+  // Retrieve configured sender and API key
   const SENDER_EMAIL = functions.config().emailconfig?.sender ||
                        "noreply@autonest.site"; // Fallback sender
+  // const ESP_API_KEY = functions.config().sendgrid?.apikey; // Example for SendGrid
+
   const subject = `Welcome to AutoNest, ${displayName}!`;
   const body = `Hi ${displayName},\n\n` +
                "Welcome to AutoNest! We're thrilled to have you on board.\n\n" +
@@ -341,21 +354,21 @@ export const sendWelcomeEmail = functions.auth.user().onCreate(async (user) => {
         subject: subject,
         body: body,
       },
-    }
+    },
   );
 
   // Example using SendGrid (conceptual - uncomment and adapt after setup):
   //
-  // const sgMail = require('@sendgrid/mail');
-  // const SENDGRID_API_KEY = functions.config().sendgrid?.apikey;
-  //
-  // if (!SENDGRID_API_KEY) {
+  // if (!ESP_API_KEY) {
   //   functions.logger.error(
-  //      "SendGrid API Key not configured in Firebase Functions config."
+  //      "SendGrid API Key (or your ESP's API key) not configured." +
+  //      " Set it via firebase functions:config:set sendgrid.apikey=..."
   //   );
   //   return; // Or throw an error
   // }
-  // sgMail.setApiKey(SENDGRID_API_KEY);
+  //
+  // const sgMail = require('@sendgrid/mail');
+  // sgMail.setApiKey(ESP_API_KEY);
   //
   // const msg = {
   //   to: email,
@@ -365,12 +378,12 @@ export const sendWelcomeEmail = functions.auth.user().onCreate(async (user) => {
   //   },
   //   subject: subject,
   //   text: body,
-  //   // html: `<p>Hi ${displayName},</p><p>Welcome to AutoNest! ...</p>`,
+  //   // html: `<p>Hi ${displayName},</p><p>Welcome to AutoNest! ...</p>`, // Optional HTML content
   // };
   //
   // try {
   //   await sgMail.send(msg);
-  //   functions.logger.info(`Welcome email successfully sent to ${email}`);
+  //   functions.logger.info(`Welcome email successfully sent to ${email} via SendGrid.`);
   // } catch (error: any) {
   //   functions.logger.error(
   //      `Error sending welcome email to ${email} via SendGrid:`, error
