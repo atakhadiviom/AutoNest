@@ -277,7 +277,7 @@ app.post("/capture-payment", async (req: Request, res: Response) => {
       paypalAPIDetails,
     };
     functions.logger.error(
-      `Capture failed for ${orderID}.`,
+      `Capture failed for ${orderID}. Details:`,
       errorLogDetails,
     );
     const errMsg = err.message || "Server error capturing payment.";
@@ -355,14 +355,15 @@ export const sendWelcomeEmail = functions.auth.user().onCreate(async (user) => {
       warningMessage += "Set it via `firebase functions:config:set " +
                         "mailersend.senderemail=\"welcome@autonest.site\"`. ";
     }
-    warningMessage += "Ensure your domain autonest.site is verified with " +
-                      "MailerSend.";
+    warningMessage += "Ensure your domain autonest.site is verified " +
+                      "with MailerSend.";
     functions.logger.warn(warningMessage, {userId: user.uid});
 
     // Log simulation details
     const simulatedFrom = SENDER_EMAIL || "config_missing@autonest.site";
     functions.logger.info(
-      `SIMULATED Welcome Email to: ${email} from ${simulatedFrom} via MailerSend`,
+      `SIMULATED Welcome Email to: ${email} ` +
+      `from ${simulatedFrom} via MailerSend`,
       {
         userId: user.uid,
         emailDetails: {
