@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/auth-context';
 
 import AppLayout from "@/components/layout/app-layout";
 import { mockWorkflows } from "@/components/../lib/mock-data";
-import type { Workflow, WorkflowStep, WorkflowRunLog, AudioTranscriptSummaryOutput, BlogFactoryOutput } from "@/lib/types";
+import type { Workflow, WorkflowStep, WorkflowRunLog, AudioTranscriptSummaryOutput } from "@/lib/types";
 import type { KeywordSuggestionOutput } from '@/ai/flows/keyword-suggestion-flow';
 
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Spinner } from "@/components/ui/loader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database, FileText, AlertCircleIcon, UserRoundCheck, FileAudio, CheckCircle, MessageSquare, BookOpen, Tag, Users, Link as LinkIcon, List } from "lucide-react"; // Added List here
+import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database, FileText, AlertCircleIcon, UserRoundCheck, FileAudio, CheckCircle, MessageSquare, BookOpen, Tag, Users, Link as LinkIcon, List, PlayCircle } from "lucide-react";
 import Link from 'next/link'; // For external links
 
 const runnerComponents: Record<string, ComponentType<any>> = {
@@ -43,11 +43,6 @@ function isKeywordSuggestionOutput(output: any): output is KeywordSuggestionOutp
 function isAudioTranscriptSummaryOutput(output: any): output is AudioTranscriptSummaryOutput {
   return output && typeof output.transcriptSummary === 'object' && output.transcriptSummary !== null && typeof output.transcriptSummary.title === 'string';
 }
-
-// Helper to check if output is BlogFactoryOutput - this was removed so the type guard is not needed anymore
-// function isBlogFactoryOutput(output: any): output is BlogFactoryOutput {
-//  return output && typeof output.title === 'string' && typeof output.content === 'string';
-//}
 
 
 export default function WorkflowDetailsPage() {
@@ -86,16 +81,15 @@ export default function WorkflowDetailsPage() {
       const history: WorkflowRunLog[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        // Ensure timestamp is a Date object
         let timestamp: Date;
         if (data.timestamp instanceof FirestoreTimestamp) {
           timestamp = data.timestamp.toDate();
-        } else if (data.timestamp && typeof data.timestamp.toDate === 'function') { // For objects from older SDK versions
+        } else if (data.timestamp && typeof data.timestamp.toDate === 'function') { 
           timestamp = data.timestamp.toDate();
         } else if (typeof data.timestamp === 'string') {
-           timestamp = new Date(data.timestamp); // Attempt to parse if string
+           timestamp = new Date(data.timestamp); 
         } else {
-           timestamp = new Date(); // Fallback, should not happen if data is correct
+           timestamp = new Date(); 
            console.warn("Timestamp was not a Firestore Timestamp or recognizable date format, used current date as fallback for log:", doc.id, data.timestamp);
         }
         history.push({ id: doc.id, ...data, timestamp } as WorkflowRunLog);
@@ -135,10 +129,10 @@ export default function WorkflowDetailsPage() {
   const handleSuccessfulRun = useCallback(() => {
     setWorkflow(prev => prev ? ({
       ...prev,
-      usageCount: prev.usageCount + 1, // This usageCount is local to the page, not the mock data
+      usageCount: prev.usageCount + 1, 
       lastRunDate: new Date().toISOString()
     }) : null);
-    fetchHistory(); // Refetch history to include the latest run
+    fetchHistory(); 
   }, [fetchHistory]);
 
 
@@ -386,12 +380,17 @@ export default function WorkflowDetailsPage() {
                         {selectedHistoryLog.inputDetails.audioFileType && <p><span className="font-semibold">Type:</span> {selectedHistoryLog.inputDetails.audioFileType}</p>}
                         {selectedHistoryLog.inputDetails.audioFileSize && <p><span className="font-semibold">Size:</span> {(selectedHistoryLog.inputDetails.audioFileSize / (1024*1024)).toFixed(2)} MB</p>}
                         {selectedHistoryLog.inputDetails.audioStorageUrl && (
-                           <p className="flex items-center">
-                             <span className="font-semibold">Stored At:</span>
-                             <Link href={selectedHistoryLog.inputDetails.audioStorageUrl} target="_blank" rel="noopener noreferrer" className="ml-1 text-primary hover:underline inline-flex items-center">
-                               View/Download Audio <LinkIcon className="ml-1 h-3 w-3" />
-                             </Link>
-                           </p>
+                           <div className="mt-2 space-y-2">
+                             <p className="flex items-center">
+                               <span className="font-semibold">Stored Audio:</span>
+                               <Link href={selectedHistoryLog.inputDetails.audioStorageUrl} target="_blank" rel="noopener noreferrer" className="ml-1 text-primary hover:underline inline-flex items-center">
+                                 Download Original <LinkIcon className="ml-1 h-3 w-3" />
+                               </Link>
+                             </p>
+                             <audio controls src={selectedHistoryLog.inputDetails.audioStorageUrl} className="w-full">
+                               Your browser does not support the audio element.
+                             </audio>
+                           </div>
                         )}
                     </div>
                  )}
@@ -450,7 +449,7 @@ export default function WorkflowDetailsPage() {
                     )}
                      {!isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && !isAudioTranscriptSummaryOutput(selectedHistoryLog.fullOutput) && typeof selectedHistoryLog.fullOutput !== 'string' && selectedHistoryLog.fullOutput && (
                         <p className="text-sm text-muted-foreground">Output recorded (type: {typeof selectedHistoryLog.fullOutput}). No specific display for this format. Summary: {selectedHistoryLog.outputSummary}</p>
-                    )}
+                     )}
                      {!selectedHistoryLog.fullOutput && (
                         <p className="text-sm text-muted-foreground">No full output recorded. Summary: {selectedHistoryLog.outputSummary || 'N/A'}</p>
                      )}
@@ -476,5 +475,3 @@ export default function WorkflowDetailsPage() {
     </AppLayout>
   );
 }
-
-    

@@ -1,8 +1,8 @@
 
 "use client";
 
-import type { FC } from "react";
-import { useState, useCallback } from "react";
+import type { FC, ChangeEvent } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -19,7 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { AlertCircle, Loader2, Info, CreditCard, List, CheckCircle, MessageSquare, BookOpen, Tag, Activity, Users, UploadCloud, FileAudio } from "lucide-react";
+import { AlertCircle, Loader2, Info, CreditCard, List, CheckCircle, MessageSquare, BookOpen, Tag, Activity, Users, UploadCloud, FileAudio, PlayCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
@@ -64,6 +64,7 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
   const { toast } = useToast();
   const { user, deductCredits, loading: authLoading } = useAuth();
 
@@ -72,6 +73,15 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
   });
 
   const hasEnoughCredits = user ? user.credits >= creditCost : false;
+
+  // Cleanup object URL
+  useEffect(() => {
+    return () => {
+      if (audioPreviewUrl) {
+        URL.revokeObjectURL(audioPreviewUrl);
+      }
+    };
+  }, [audioPreviewUrl]);
 
   const logRunToFirestore = async (
     status: 'Completed' | 'Failed',
@@ -171,15 +181,18 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
         });
         form.reset();
         setSelectedFileName(null);
+        if (audioPreviewUrl) {
+          URL.revokeObjectURL(audioPreviewUrl);
+          setAudioPreviewUrl(null);
+        }
       } catch (serverActionError: any) {
         console.error(
           "[AudioTranscriberRunner] Call to 'transcribeAndSummarizeAudio' FAILED. Error object received by client:",
           serverActionError
         );
-        // Attempt to construct a more informative message
-        let detailedErrorMessage = "Failed to process audio on the server. The server action returned an unexpected error.";
+        let detailedErrorMessage = "An unexpected response was received from the server.";
         if (serverActionError instanceof Error) {
-            detailedErrorMessage = serverActionError.message; // This is likely where the generic message comes from if Next.js wraps it
+            detailedErrorMessage = serverActionError.message; 
         } else if (typeof serverActionError === 'string') {
             detailedErrorMessage = serverActionError;
         } else if (serverActionError && serverActionError.message) { 
@@ -188,13 +201,11 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
             detailedErrorMessage = serverActionError.toString();
         }
         
-        // Log the properties of the serverActionError if it's an object
         if (typeof serverActionError === 'object' && serverActionError !== null) {
-            console.error("[AudioTranscriberRunner] Properties of serverActionError object (stringified with Object.getOwnPropertyNames):", JSON.stringify(serverActionError, Object.getOwnPropertyNames(serverActionError)));
-             // Additional logging of common error properties
-            if ('name' in serverActionError) console.error("[AudioTranscriberRunner] serverActionError.name:", serverActionError.name);
-            if ('stack' in serverActionError) console.error("[AudioTranscriberRunner] serverActionError.stack (first 300 chars):", String(serverActionError.stack).substring(0,300));
-            if ('digest' in serverActionError) console.error("[AudioTranscriberRunner] serverActionError.digest (Next.js specific):", serverActionError.digest);
+            console.error("[AudioTranscriberRunner] Properties of serverActionError object:", JSON.stringify(serverActionError, Object.getOwnPropertyNames(serverActionError)));
+             if ('name' in serverActionError) console.error("[AudioTranscriberRunner] serverActionError.name:", serverActionError.name);
+             if ('stack' in serverActionError) console.error("[AudioTranscriberRunner] serverActionError.stack (first 300 chars):", String(serverActionError.stack).substring(0,300));
+             if ('digest' in serverActionError) console.error("[AudioTranscriberRunner] serverActionError.digest (Next.js specific):", serverActionError.digest);
         }
         console.error("[AudioTranscriberRunner] CHECK SERVER LOGS (Next.js console) FOR THE ORIGINAL ERROR FROM 'audio-transcription-flow.ts'.");
         console.error("[AudioTranscriberRunner] Client-side constructed detailed error message:", detailedErrorMessage);
@@ -203,7 +214,7 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
       }
     } catch (e: any) { 
       console.error("[AudioTranscriberRunner] Error in onSubmit (outer catch):", e);
-      console.error("[AudioTranscriberRunner] Full error object in outer catch (stringified with Object.getOwnPropertyNames):", JSON.stringify(e, Object.getOwnPropertyNames(e || {})));
+      console.error("[AudioTranscriberRunner] Full error object in outer catch:", JSON.stringify(e, Object.getOwnPropertyNames(e || {})));
 
       const errorMessage = e instanceof Error ? e.message : "An unexpected error occurred during the process.";
       setError(errorMessage);
@@ -222,7 +233,7 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
   }
 
   const renderList = (title: string, items: string[] | undefined, icon: React.ReactNode) => {
-    if (!items || items.length === 0) return null;
+    if (!items || items.length === 0 || (items.length === 1 && items[0] === "Nothing found for this summary list type.")) return null;
     return (
       <div>
         <h4 className="font-semibold text-md mb-1 flex items-center">{icon} {title}</h4>
@@ -233,10 +244,16 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
     );
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
+    if (audioPreviewUrl) {
+      URL.revokeObjectURL(audioPreviewUrl);
+      setAudioPreviewUrl(null);
+    }
     if (files && files.length > 0) {
-      setSelectedFileName(files[0].name);
+      const file = files[0];
+      setSelectedFileName(file.name);
+      setAudioPreviewUrl(URL.createObjectURL(file));
       form.setValue("audioFile", files, { shouldValidate: true });
     } else {
       setSelectedFileName(null);
@@ -287,6 +304,17 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
                   </FormItem>
                 )}
               />
+              {audioPreviewUrl && (
+                <div className="mt-4 p-4 border rounded-md bg-muted/30">
+                  <h4 className="text-sm font-medium mb-2 flex items-center">
+                    <PlayCircle className="mr-2 h-4 w-4 text-primary" />
+                    Audio Preview
+                  </h4>
+                  <audio controls src={audioPreviewUrl} className="w-full">
+                    Your browser does not support the audio element.
+                  </audio>
+                </div>
+              )}
               <Button
                 type="submit"
                 disabled={isLoading || authLoading || !hasEnoughCredits || !form.formState.isValid}
