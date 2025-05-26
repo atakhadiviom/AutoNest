@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge"; // Added import
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Mic, FileAudio, AlertCircle, Loader2, Info, CreditCard, List, CheckCircle, MessageSquare, BookOpen, Tag, Activity, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -210,14 +211,14 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
               <FormField
                 control={form.control}
                 name="audioFile"
-                render={({ field: { onChange, value, ...rest } }) => ( // Use Controller for file input
+                render={({ field: { onChange, value, ...rest } }) => ( 
                   <FormItem>
                     <FormLabel>Audio File</FormLabel>
                     <FormControl>
                        <Input 
                           type="file" 
                           accept={ACCEPTED_AUDIO_TYPES.join(",")}
-                          onChange={handleFileChange} // Use custom handler to update form and selectedFileName
+                          onChange={handleFileChange} 
                           className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
                         />
                     </FormControl>
