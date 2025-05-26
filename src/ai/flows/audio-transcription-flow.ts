@@ -29,69 +29,83 @@ export async function transcribeAndSummarizeAudio(
   formData.append("audioData", audioFile, audioFile.name);
 
   try {
+    console.log("[Audio Transcription Flow] Attempting fetch to n8n webhook...");
     const response = await fetch(n8nWebhookUrl, {
       method: 'POST',
       body: formData,
       // 'Content-Type': 'multipart/form-data' is automatically set by browser for FormData
     });
+    console.log("[Audio Transcription Flow] Fetch response received.");
 
     responseStatus = response.status;
     responseStatusText = response.statusText;
     responseContentType = response.headers.get('content-type') || 'N/A';
+    
+    console.log(`[Audio Transcription Flow] Response Status: ${responseStatus} ${responseStatusText}`);
+    console.log(`[Audio Transcription Flow] Response Content-Type: ${responseContentType}`);
+
     rawResponseText = await response.text();
+    console.log("[Audio Transcription Flow] Raw response text received. Length:", rawResponseText.length);
+
 
     if (!response.ok) {
       console.error(
         `[Audio Transcription Flow] Error from n8n webhook. Status: ${responseStatus} ${responseStatusText}. Content-Type: ${responseContentType}. Raw Response:`,
-        rawResponseText
+        rawResponseText.substring(0, 500) // Log first 500 chars of raw response
       );
       throw new Error(
-        `N8N webhook request failed with status ${responseStatus} (${responseStatusText}). Response: ${rawResponseText || "No response body."}`
+        `N8N webhook request failed with status ${responseStatus} (${responseStatusText}). Response: ${rawResponseText.substring(0, 200) || "No response body."}`
       );
     }
 
     if (!responseContentType.includes('application/json')) {
       console.error(
         `[Audio Transcription Flow] Unexpected Content-Type from n8n webhook: ${responseContentType}. Expected JSON. Raw Response:`,
-        rawResponseText
+        rawResponseText.substring(0, 500)
       );
       throw new Error(
-        `N8N webhook returned non-JSON content (${responseContentType}). Response: ${rawResponseText || "No response body."}`
+        `N8N webhook returned non-JSON content (${responseContentType}). Response: ${rawResponseText.substring(0, 200) || "No response body."}`
       );
     }
     
     let data: AudioTranscriptSummaryOutput;
     try {
+        console.log("[Audio Transcription Flow] Attempting to parse JSON response...");
         data = JSON.parse(rawResponseText) as AudioTranscriptSummaryOutput;
+        console.log("[Audio Transcription Flow] Successfully parsed JSON response.");
     } catch (parseError: any) {
         console.error(
             `[Audio Transcription Flow] Failed to parse JSON response from n8n webhook. Raw Response:`,
-            rawResponseText,
+            rawResponseText.substring(0, 500),
             `Parse Error:`, parseError
         );
         throw new Error(
-            `Failed to parse JSON response from N8N webhook. Detail: ${parseError.message}. Raw response: ${rawResponseText || "No response body."}`
+            `Failed to parse JSON response from N8N webhook. Detail: ${parseError.message}. Raw response: ${rawResponseText.substring(0, 200) || "No response body."}`
         );
     }
     
-    console.log("[Audio Transcription Flow] Successfully parsed data from n8n webhook:", JSON.stringify(data, null, 2));
+    console.log("[Audio Transcription Flow] Parsed data from n8n webhook:", JSON.stringify(data, null, 2).substring(0, 500));
 
-    if (!data || !data.transcriptSummary) {
-        console.error("[Audio Transcription Flow] Unexpected data format from n8n webhook. 'transcriptSummary' missing. Data:", data);
-        throw new Error("Invalid data format received from transcription service. 'transcriptSummary' missing.");
+    if (!data || typeof data.transcriptSummary !== 'object' || data.transcriptSummary === null) {
+        console.error("[Audio Transcription Flow] Unexpected data format from n8n webhook. 'transcriptSummary' object missing or not an object. Data:", data);
+        throw new Error("Invalid data format: 'transcriptSummary' object missing or invalid.");
     }
-
+    
     // Basic validation of the structure (can be expanded with Zod if needed)
     if (typeof data.transcriptSummary.title !== 'string' || typeof data.transcriptSummary.summary !== 'string') {
         console.warn("[Audio Transcription Flow] Received transcriptSummary, but title or summary is not a string. Data:", data.transcriptSummary);
         // Potentially throw an error or attempt to use it as is, depending on strictness
+        // For now, we will proceed if title/summary are not strings, but log a warning.
+        // If these are essential, an error should be thrown:
+        // throw new Error("Invalid transcriptSummary format: title or summary is not a string.");
     }
     
+    console.log("[Audio Transcription Flow] Process completed successfully.");
     return data;
 
   } catch (error: any) {
-    console.error("[Audio Transcription Flow] Error in transcription process:", error.message, error.stack);
-    // Construct a detailed error message
+    console.error("[Audio Transcription Flow] Error in transcription process overall:", error.message, error.stack);
+    
     let detail = "An unexpected error occurred in the audio transcription flow.";
     if (error instanceof Error) {
       detail = error.message;
@@ -101,17 +115,18 @@ export async function transcribeAndSummarizeAudio(
     
     const errorContext = {
         message: detail,
-        originalError: error.toString(),
+        originalErrorName: error.name,
+        originalErrorMessage: error.message,
         n8nWebhookUrl,
         attemptedFileName: audioFile.name,
-        responseStatus,
-        responseStatusText,
-        responseContentType,
-        rawResponseText: rawResponseText || "Raw response text not captured before error.",
+        responseStatusCaptured: responseStatus,
+        responseStatusTextCaptured: responseStatusText,
+        responseContentTypeCaptured: responseContentType,
+        rawResponseTextPreview: rawResponseText.substring(0, 200) || "Raw response text not captured or empty before error.",
     };
-    console.error("[Audio Transcription Flow] Error Context:", errorContext);
+    console.error("[Audio Transcription Flow] Detailed Error Context:", errorContext);
 
-    // Re-throw a new error with more context, to be caught by the client
-    throw new Error(`Audio transcription failed. Detail: ${detail}. Status: ${responseStatus}. Raw: ${rawResponseText.substring(0, 100)}...`);
+    // Re-throw a new, standard Error object with more context
+    throw new Error(`Audio transcription failed. Detail: ${detail}. Status: ${responseStatus || 'N/A'}. Raw Resp: ${rawResponseText.substring(0,100)}...`);
   }
 }
