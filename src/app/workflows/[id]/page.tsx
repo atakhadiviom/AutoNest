@@ -10,10 +10,10 @@ import { collection, query, where, orderBy, getDocs, Timestamp as FirestoreTimes
 import { useAuth } from '@/contexts/auth-context';
 
 import AppLayout from "@/components/layout/app-layout";
-import { mockWorkflows } from "@/lib/mock-data";
+import { mockWorkflows } from "@/components/../lib/mock-data"; // Adjusted path for consistency
 import type { Workflow, WorkflowStep, WorkflowRunLog } from "@/lib/types";
 import type { KeywordSuggestionOutput } from '@/ai/flows/keyword-suggestion-flow'; 
-import type { BlogFactoryOutput } from '@/ai/flows/blog-factory-flow';
+// BlogFactoryOutput removed as the tool is removed
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,21 +23,14 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/loader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database, FileText, AlertCircleIcon, Newspaper, UserRoundCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database, FileText, AlertCircleIcon, UserRoundCheck } from "lucide-react"; // Newspaper removed
 
 const runnerComponents: Record<string, ComponentType<any>> = {
   KeywordSuggesterRunner: lazy(() => 
     import('@/components/tools/keyword-suggester-runner').then(module => ({ default: module.KeywordSuggesterRunner }))
   ),
-  BlogFactoryRunner: lazy(() =>
-    import('@/components/tools/blog-factory-runner').then(module => ({ default: module.BlogFactoryRunner }))
-  ),
+  // BlogFactoryRunner removed
 };
-
-// Helper to check if output is BlogFactoryOutput
-function isBlogFactoryOutput(output: any): output is BlogFactoryOutput {
-  return output && typeof output.title === 'string' && typeof output.content === 'string' && typeof output.slug === 'string';
-}
 
 // Helper to check if output is KeywordSuggestionOutput
 function isKeywordSuggestionOutput(output: any): output is KeywordSuggestionOutput['suggestions'] {
@@ -387,41 +380,12 @@ export default function WorkflowDetailsPage() {
                           </CardContent>
                         </Card>
                     )}
-                    {isBlogFactoryOutput(selectedHistoryLog.fullOutput) && (
-                        <Card className="bg-muted/50 p-4 text-sm">
-                            <CardHeader className="p-0 pb-2">
-                                <CardTitle className="text-lg">{selectedHistoryLog.fullOutput.title}</CardTitle>
-                                {selectedHistoryLog.fullOutput.subtitle && <CardDescription className="text-md">{selectedHistoryLog.fullOutput.subtitle}</CardDescription>}
-                            </CardHeader>
-                            <CardContent className="p-0 mt-2 space-y-3">
-                                <div className="space-y-1">
-                                    <p className="text-xs font-medium uppercase text-muted-foreground">Meta</p>
-                                    <p className="text-xs bg-background p-2 rounded">{selectedHistoryLog.fullOutput.meta}</p>
-                                </div>
-                                <div className="space-y-1">
-                                    <p className="text-xs font-medium uppercase text-muted-foreground">Slug</p>
-                                    <p className="text-xs bg-background p-2 rounded font-mono">{selectedHistoryLog.fullOutput.slug}</p>
-                                </div>
-                                {selectedHistoryLog.fullOutput.hashtags && selectedHistoryLog.fullOutput.hashtags.length > 0 && (
-                                    <div className="space-y-1">
-                                        <p className="text-xs font-medium uppercase text-muted-foreground">Hashtags</p>
-                                        <div className="flex flex-wrap gap-1">
-                                        {selectedHistoryLog.fullOutput.hashtags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}
-                                        </div>
-                                    </div>
-                                )}
-                                <p className="text-xs font-medium uppercase text-muted-foreground pt-2">Content</p>
-                                <ScrollArea className="h-[250px] border rounded p-3 bg-background">
-                                    <div className="whitespace-pre-line" dangerouslySetInnerHTML={{ __html: selectedHistoryLog.fullOutput.content.replace(/\n/g, '<br />') }} />
-                                </ScrollArea>
-                            </CardContent>
-                        </Card>
-                    )}
-                    {!isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && !isBlogFactoryOutput(selectedHistoryLog.fullOutput) && typeof selectedHistoryLog.fullOutput === 'string' && (
+                    {/* Removed BlogFactoryOutput specific rendering */}
+                    {!isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && typeof selectedHistoryLog.fullOutput === 'string' && (
                         <pre className="text-xs bg-muted p-2 rounded-md whitespace-pre-wrap">{selectedHistoryLog.fullOutput}</pre>
                     )}
-                     {!isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && !isBlogFactoryOutput(selectedHistoryLog.fullOutput) && typeof selectedHistoryLog.fullOutput !== 'string' && (
-                        <p className="text-sm text-muted-foreground">No detailed output of known type recorded or output is complex.</p>
+                     {!isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && typeof selectedHistoryLog.fullOutput !== 'string' && (
+                        <p className="text-sm text-muted-foreground">No detailed output of known type recorded or output is complex. Output type: {typeof selectedHistoryLog.fullOutput}</p>
                     )}
                   </>
                 ) : (
@@ -445,5 +409,3 @@ export default function WorkflowDetailsPage() {
     </AppLayout>
   );
 }
-
-

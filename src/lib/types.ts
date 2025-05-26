@@ -1,7 +1,7 @@
 
 import type { Timestamp } from 'firebase/firestore';
 import type { KeywordSuggestionOutput } from '@/ai/flows/keyword-suggestion-flow';
-import type { BlogFactoryOutput } from '@/ai/flows/blog-factory-flow'; 
+// BlogFactoryOutput import removed
 
 export type WorkflowStep = {
   id: string;
@@ -37,7 +37,7 @@ export interface WorkflowRunLog {
   outputSummary?: string; 
   errorDetails?: string; 
   creditCostAtRun: number;
-  fullOutput?: KeywordSuggestionOutput['suggestions'] | BlogFactoryOutput | string | Record<string, any>; 
+  fullOutput?: KeywordSuggestionOutput['suggestions'] | string | Record<string, any>; // BlogFactoryOutput removed from union
 }
 
 // New type for displaying user data in the admin dashboard

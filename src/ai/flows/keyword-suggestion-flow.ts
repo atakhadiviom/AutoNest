@@ -26,7 +26,7 @@ const KeywordSuggestionOutputSchema = z.object({
 export type KeywordSuggestionOutput = z.infer<typeof KeywordSuggestionOutputSchema>;
 
 export async function suggestKeywords(input: KeywordSuggestionInput): Promise<KeywordSuggestionOutput> {
-  const n8nWebhookBaseUrl = "https://n8n-service-g3uy.onrender.com/webhook/76a63718-b3cb-4141-bc55-efa614d13f1d";
+  const n8nWebhookBaseUrl = "https://n8n.autonest.site/webhook/76a63718-b3cb-4141-bc55-efa614d13f1d";
   const encodedTopic = encodeURIComponent(input.topic);
   const fullUrl = `${n8nWebhookBaseUrl}?q=${encodedTopic}`;
 
