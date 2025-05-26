@@ -24,7 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
-const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ACCEPTED_AUDIO_TYPES = [
   "audio/mpeg", // .mp3
   "audio/ogg",  // .ogg
@@ -38,7 +38,7 @@ const ACCEPTED_AUDIO_TYPES = [
 const formSchema = z.object({
   audioFile: z
     .custom<FileList>((val) => val instanceof FileList && val.length > 0, "Please select an audio file.")
-    .refine((files) => files?.[0]?.size <= MAX_FILE_SIZE, `Max file size is 15MB.`)
+    .refine((files) => files?.[0]?.size <= MAX_FILE_SIZE, `Max file size is 10MB.`)
     .refine(
       (files) => ACCEPTED_AUDIO_TYPES.includes(files?.[0]?.type),
       "Unsupported file type. Please upload an MP3, OGG, WAV, AAC, FLAC, or M4A file."
@@ -74,14 +74,16 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
 
   const hasEnoughCredits = user ? user.credits >= creditCost : false;
 
-  // Cleanup object URL
+  // Cleanup object URL when component unmounts or audioPreviewUrl changes
   useEffect(() => {
     return () => {
       if (audioPreviewUrl) {
         URL.revokeObjectURL(audioPreviewUrl);
+        console.log("[AudioTranscriberRunner] Revoked old audio preview URL:", audioPreviewUrl);
       }
     };
   }, [audioPreviewUrl]);
+
 
   const logRunToFirestore = async (
     status: 'Completed' | 'Failed',
@@ -166,9 +168,8 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
       console.log(`[AudioTranscriberRunner] Firebase upload successful. URL: ${audioStorageUrl}`);
       toast({ title: "Upload Complete!", description: "Now processing your audio for transcription and summary.", duration: 5000 });
 
-      // Call the server action
+      console.log("[AudioTranscriberRunner] Attempting to call transcribeAndSummarizeAudio with file:", audioFile.name);
       try {
-        console.log("[AudioTranscriberRunner] Attempting to call transcribeAndSummarizeAudio with file:", audioFile.name);
         const result = await transcribeAndSummarizeAudio(audioFile);
         console.log("[AudioTranscriberRunner] transcribeAndSummarizeAudio call SUCCEEDED. Result preview:", JSON.stringify(result, null, 2).substring(0, 300));
         setSummaryOutput(result);
@@ -181,40 +182,33 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
         });
         form.reset();
         setSelectedFileName(null);
-        if (audioPreviewUrl) {
-          URL.revokeObjectURL(audioPreviewUrl);
-          setAudioPreviewUrl(null);
+        if (audioPreviewUrl) { // Clean up preview URL after successful submission
+            URL.revokeObjectURL(audioPreviewUrl);
+            setAudioPreviewUrl(null);
         }
       } catch (serverActionError: any) {
-        console.error(
-          "[AudioTranscriberRunner] Call to 'transcribeAndSummarizeAudio' FAILED. Error object received by client:",
-          serverActionError
-        );
+        console.error("[AudioTranscriberRunner] Call to 'transcribeAndSummarizeAudio' FAILED. Error object received by client:", serverActionError);
         let detailedErrorMessage = "An unexpected response was received from the server.";
-        if (serverActionError instanceof Error) {
-            detailedErrorMessage = serverActionError.message; 
-        } else if (typeof serverActionError === 'string') {
-            detailedErrorMessage = serverActionError;
-        } else if (serverActionError && serverActionError.message) { 
-            detailedErrorMessage = serverActionError.message;
-        } else if (serverActionError && typeof serverActionError.toString === 'function') {
-            detailedErrorMessage = serverActionError.toString();
-        }
-        
-        if (typeof serverActionError === 'object' && serverActionError !== null) {
-            console.error("[AudioTranscriberRunner] Properties of serverActionError object:", JSON.stringify(serverActionError, Object.getOwnPropertyNames(serverActionError)));
-             if ('name' in serverActionError) console.error("[AudioTranscriberRunner] serverActionError.name:", serverActionError.name);
-             if ('stack' in serverActionError) console.error("[AudioTranscriberRunner] serverActionError.stack (first 300 chars):", String(serverActionError.stack).substring(0,300));
-             if ('digest' in serverActionError) console.error("[AudioTranscriberRunner] serverActionError.digest (Next.js specific):", serverActionError.digest);
+
+        if (serverActionError && typeof serverActionError === 'object') {
+            if (serverActionError.message) {
+                detailedErrorMessage = serverActionError.message;
+            }
+             // Additional logging of common error properties
+            if ('name' in serverActionError) console.error("[AudioTranscriberRunner] serverActionError.name:", serverActionError.name);
+            if ('stack' in serverActionError) console.error("[AudioTranscriberRunner] serverActionError.stack (first 300 chars):", String(serverActionError.stack).substring(0,300));
+            if ('digest' in serverActionError) console.error("[AudioTranscriberRunner] serverActionError.digest (Next.js specific):", serverActionError.digest);
         }
         console.error("[AudioTranscriberRunner] CHECK SERVER LOGS (Next.js console) FOR THE ORIGINAL ERROR FROM 'audio-transcription-flow.ts'.");
         console.error("[AudioTranscriberRunner] Client-side constructed detailed error message:", detailedErrorMessage);
-        
+        // Re-throw to be caught by the outer catch, which handles UI updates and Firestore logging
         throw new Error(`Server processing error: ${detailedErrorMessage}`);
       }
     } catch (e: any) { 
       console.error("[AudioTranscriberRunner] Error in onSubmit (outer catch):", e);
-      console.error("[AudioTranscriberRunner] Full error object in outer catch:", JSON.stringify(e, Object.getOwnPropertyNames(e || {})));
+      // Log the full error object `e` here as well for the outer catch, providing more structure if available.
+      // Using Object.getOwnPropertyNames helps serialize non-enumerable properties of Error objects
+      console.error("[AudioTranscriberRunner] Full error object in outer catch (stringified with Object.getOwnPropertyNames):", JSON.stringify(e, Object.getOwnPropertyNames(e || {})));
 
       const errorMessage = e instanceof Error ? e.message : "An unexpected error occurred during the process.";
       setError(errorMessage);
@@ -246,14 +240,17 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
-    if (audioPreviewUrl) {
+    if (audioPreviewUrl) { // Revoke previous URL if exists
       URL.revokeObjectURL(audioPreviewUrl);
-      setAudioPreviewUrl(null);
+      setAudioPreviewUrl(null); // Important to set to null before creating a new one
+      console.log("[AudioTranscriberRunner] Revoked old audio preview URL in handleFileChange.");
     }
     if (files && files.length > 0) {
       const file = files[0];
       setSelectedFileName(file.name);
-      setAudioPreviewUrl(URL.createObjectURL(file));
+      const newPreviewUrl = URL.createObjectURL(file);
+      setAudioPreviewUrl(newPreviewUrl);
+      console.log("[AudioTranscriberRunner] Created new audio preview URL:", newPreviewUrl);
       form.setValue("audioFile", files, { shouldValidate: true });
     } else {
       setSelectedFileName(null);
@@ -273,7 +270,7 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
                 Audio Transcription & Summarization
               </CardTitle>
               <CardDescription>
-                Upload an audio file (MP3, OGG, WAV, AAC, FLAC, M4A - max 15MB).
+                Upload an audio file (MP3, OGG, WAV, AAC, FLAC, M4A - max 10MB).
                 The file will be stored, transcribed, and summarized.
               </CardDescription>
             </div>
@@ -413,3 +410,5 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
     </div>
   );
 };
+
+    
