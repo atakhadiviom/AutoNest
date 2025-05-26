@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
-import { app as firebaseApp, db } from "@/lib/firebase"; // Ensure 'app' is exported and db is imported
+import { app as firebaseApp, db } from "@/lib/firebase";
 
 import { transcribeAndSummarizeAudio } from "@/ai/flows/audio-transcription-flow";
 import type { AudioTranscriptSummaryOutput, WorkflowRunLog } from "@/lib/types";
@@ -19,7 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Mic, FileAudio, AlertCircle, Loader2, Info, CreditCard, List, CheckCircle, MessageSquare, BookOpen, Tag, Activity, Users, UploadCloud } from "lucide-react";
+import { Mic, AlertCircle, Loader2, Info, CreditCard, List, CheckCircle, MessageSquare, BookOpen, Tag, Activity, Users, UploadCloud, FileAudio } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
@@ -81,7 +81,7 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
     errorMessage?: string
   ) => {
     if (!user) {
-      console.error("Cannot log run: user not available.");
+      console.error("[AudioTranscriberRunner] Cannot log run: user not available.");
       return;
     }
     try {
@@ -112,9 +112,9 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
       };
 
       await addDoc(collection(db, "workflowRunLogs"), logEntry);
-      console.log("Audio transcription run logged to Firestore with input details:", inputDetails);
-    } catch (e) {
-      console.error("Error logging audio transcription run to Firestore:", e);
+      console.log("[AudioTranscriberRunner] Audio transcription run logged to Firestore. Log ID (client-side, not actual Firestore ID):", Date.now(), "Details:", logEntry);
+    } catch (e: any)  {
+      console.error("[AudioTranscriberRunner] Error logging audio transcription run to Firestore:", e.message, e);
     }
   };
 
@@ -146,37 +146,67 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
     let audioStorageUrl: string | undefined = undefined;
 
     try {
-      // 1. Upload to Firebase Storage
+      console.log("[AudioTranscriberRunner] Starting file upload to Firebase Storage for:", audioFile.name);
       toast({ title: "Uploading audio...", description: "Please wait while your file is being uploaded.", duration: 5000 });
       const filePath = `user_audio_uploads/${user.uid}/${workflowId}/${Date.now()}-${audioFile.name}`;
       const fileRef = storageRef(storage, filePath);
       
-      console.log(`[AudioTranscriberRunner] Attempting to upload to: ${filePath}`);
       await uploadBytes(fileRef, audioFile);
       audioStorageUrl = await getDownloadURL(fileRef);
-      console.log(`[AudioTranscriberRunner] File uploaded successfully. URL: ${audioStorageUrl}`);
+      console.log(`[AudioTranscriberRunner] Firebase upload successful. URL: ${audioStorageUrl}`);
       toast({ title: "Upload Complete!", description: "Now processing your audio for transcription and summary.", duration: 5000 });
 
-      // 2. Send to n8n for transcription/summary
-      const result = await transcribeAndSummarizeAudio(audioFile);
-      setSummaryOutput(result);
+      // Call the server action
+      try {
+        console.log("[AudioTranscriberRunner] Attempting to call transcribeAndSummarizeAudio with file:", audioFile.name);
+        const result = await transcribeAndSummarizeAudio(audioFile);
+        console.log("[AudioTranscriberRunner] transcribeAndSummarizeAudio call SUCCEEDED. Result preview:", JSON.stringify(result, null, 2).substring(0, 300));
+        setSummaryOutput(result);
+        await deductCredits(creditCost);
+        await logRunToFirestore('Completed', audioFile, result, audioStorageUrl);
+        onSuccessfulRun();
+        toast({
+          title: "Transcription & Summary Complete!",
+          description: `Processed "${audioFile.name}". ${creditCost} credits used.`,
+        });
+        form.reset();
+        setSelectedFileName(null);
+      } catch (serverActionError: any) {
+        console.error(
+          "[AudioTranscriberRunner] Call to 'transcribeAndSummarizeAudio' FAILED. Raw error object received by client:",
+          serverActionError
+        );
+        // Attempt to construct a more informative message
+        let detailedErrorMessage = "Failed to process audio on the server. The server action returned an unexpected error.";
+        if (serverActionError instanceof Error) {
+            detailedErrorMessage = serverActionError.message;
+        } else if (typeof serverActionError === 'string') {
+            detailedErrorMessage = serverActionError;
+        } else if (serverActionError && serverActionError.message) { 
+            detailedErrorMessage = serverActionError.message;
+        } else if (serverActionError && typeof serverActionError.toString === 'function') {
+            detailedErrorMessage = serverActionError.toString();
+        }
+        // Log the properties of the serverActionError if it's an object
+        if (typeof serverActionError === 'object' && serverActionError !== null) {
+            console.error("[AudioTranscriberRunner] Properties of serverActionError object:", JSON.stringify(serverActionError, Object.getOwnPropertyNames(serverActionError)));
+        }
+        console.error("[AudioTranscriberRunner] Constructed detailed error message from server action failure:", detailedErrorMessage);
+        // Re-throw to be caught by the outer catch, which handles UI updates and Firestore logging
+        throw new Error(`Server processing error: ${detailedErrorMessage}`);
+      }
+    } catch (e: any) { // Outer catch for overall process errors (including re-thrown server action errors)
+      console.error("[AudioTranscriberRunner] Error in onSubmit (outer catch):", e);
+      // Log the full error object `e` here as well for the outer catch, providing more structure if available.
+      // Using Object.getOwnPropertyNames helps serialize non-enumerable properties of Error objects
+      console.error("[AudioTranscriberRunner] Full error object in outer catch:", JSON.stringify(e, Object.getOwnPropertyNames(e || {})));
 
-      // 3. Deduct credits & Log
-      await deductCredits(creditCost);
-      await logRunToFirestore('Completed', audioFile, result, audioStorageUrl);
-      onSuccessfulRun();
-      toast({
-        title: "Transcription & Summary Complete!",
-        description: `Processed "${audioFile.name}". ${creditCost} credits used.`,
-      });
-      form.reset();
-      setSelectedFileName(null);
-    } catch (e) {
-      console.error("[AudioTranscriberRunner] Error in onSubmit:", e);
-      const errorMessage = e instanceof Error ? e.message : "An unexpected error occurred during processing.";
+      const errorMessage = e instanceof Error ? e.message : "An unexpected error occurred during the process.";
       setError(errorMessage);
-      // Log failure even if storage upload succeeded but n8n failed, or if storage failed.
-      await logRunToFirestore('Failed', audioFile, null, audioStorageUrl, errorMessage);
+      
+      const fileToLog = values.audioFile?.[0] || (selectedFileName ? new File([], selectedFileName) : null);
+      await logRunToFirestore('Failed', fileToLog, null, audioStorageUrl, errorMessage);
+      
       toast({
         title: "Processing Failed",
         description: errorMessage,
@@ -206,7 +236,8 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
       form.setValue("audioFile", files, { shouldValidate: true });
     } else {
       setSelectedFileName(null);
-      form.setValue("audioFile", new DataTransfer().files, { shouldValidate: true });
+      const emptyFileList = new DataTransfer().files;
+      form.setValue("audioFile", emptyFileList, { shouldValidate: true }); 
     }
   };
 
@@ -217,11 +248,12 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
             <div>
               <CardTitle className="text-xl flex items-center">
-                <Mic className="mr-2 h-5 w-5 text-primary" />
+                <FileAudio className="mr-2 h-5 w-5 text-primary" />
                 Audio Transcription & Summarization
               </CardTitle>
               <CardDescription>
-                Upload an audio file (MP3, OGG, WAV, AAC, FLAC, M4A - max 15MB) to transcribe and summarize its content. The file will also be stored.
+                Upload an audio file (MP3, OGG, WAV, AAC, FLAC, M4A - max 15MB).
+                The file will be stored, transcribed, and summarized.
               </CardDescription>
             </div>
             <Badge variant="secondary" className="flex items-center whitespace-nowrap shrink-0">
@@ -235,14 +267,14 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
               <FormField
                 control={form.control}
                 name="audioFile"
-                render={({ field }) => ( // We don't use field directly due to custom onChange
+                render={({ field }) => ( 
                   <FormItem>
                     <FormLabel>Audio File</FormLabel>
                     <FormControl>
                        <Input
                           type="file"
                           accept={ACCEPTED_AUDIO_TYPES.join(",")}
-                          onChange={handleFileChange}
+                          onChange={handleFileChange} 
                           className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
                         />
                     </FormControl>
@@ -270,7 +302,7 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
               </Button>
               {!authLoading && !hasEnoughCredits && user && (
                 <p className="text-sm text-destructive">
-                  Not enough credits. You need {creditCost}, but have {user.credits}.
+                  Not enough credits. You need ${creditCost}, but have ${user.credits}.
                 </p>
               )}
             </form>
@@ -349,3 +381,4 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
     </div>
   );
 };
+
