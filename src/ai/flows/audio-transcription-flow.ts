@@ -17,13 +17,18 @@ export type AudioTranscriptionInput = File;
 export async function transcribeAndSummarizeAudio(
   audioFile: AudioTranscriptionInput
 ): Promise<AudioTranscriptSummaryOutput> {
-  // Top-level try-catch to capture any error within the server action
-  try {
-    console.log(`[Audio Transcription Flow] Server Action Entered. Received audioFile: name='${audioFile?.name}', size='${audioFile?.size}', type='${audioFile?.type}'`);
+  console.log(`[Audio Transcription Flow] Server Action Entered. Received audioFile argument. Type: ${typeof audioFile}`);
+  if (audioFile && typeof audioFile === 'object') {
+    console.log(`[Audio Transcription Flow] audioFile properties: name='${audioFile?.name}', size='${audioFile?.size}', type='${audioFile?.type}'`);
+  } else {
+    console.error("[Audio Transcription Flow] audioFile argument is not a valid File object or is null/undefined on server entry.");
+  }
 
+  // Top-level try-catch to capture any error within the server action, including argument processing
+  try {
     if (!audioFile || typeof audioFile.name !== 'string' || typeof audioFile.size !== 'number' || typeof audioFile.type !== 'string') {
-      console.error("[Audio Transcription Flow] Invalid audioFile argument received by Server Action.", audioFile);
-      throw new Error("Invalid audio file data received by server.");
+      console.error("[Audio Transcription Flow] Invalid audioFile argument received by Server Action after initial checks.", audioFile);
+      throw new Error("Invalid audio file data received by server (post-initial checks).");
     }
 
     const n8nWebhookUrl = "https://n8n.autonest.site/webhook/transcribe";
@@ -53,8 +58,14 @@ export async function transcribeAndSummarizeAudio(
       console.log(`[Audio Transcription Flow] n8n Response Status: ${responseStatus} ${responseStatusText}`);
       console.log(`[Audio Transcription Flow] n8n Response Content-Type: ${responseContentType}`);
 
-      rawResponseText = await response.text();
-      console.log("[Audio Transcription Flow] Raw response text from n8n. Length:", rawResponseText.length > 500 ? rawResponseText.substring(0,500) + "..." : rawResponseText);
+      // Always try to get text, even for errors, as it might contain useful info
+      try {
+        rawResponseText = await response.text();
+        console.log("[Audio Transcription Flow] Raw response text from n8n. Length:", rawResponseText.length > 500 ? rawResponseText.substring(0,500) + "..." : rawResponseText);
+      } catch (textError: any) {
+        console.warn("[Audio Transcription Flow] Could not read response text from n8n:", textError.message);
+        rawResponseText = "Could not read n8n response body.";
+      }
 
       if (!response.ok) {
         detail = `N8N webhook request failed. Status: ${responseStatus} (${responseStatusText}). Response Body: ${rawResponseText.substring(0, 500) || "No response body."}`;
@@ -68,7 +79,7 @@ export async function transcribeAndSummarizeAudio(
         throw new Error(detail);
       }
       
-      if (!responseContentType.includes('application/json') && !responseContentType.includes('text/html')) {
+      if (!responseContentType.includes('application/json') && !responseContentType.includes('text/html')) { // n8n might return HTML on some errors
         detail = `N8N webhook returned unexpected content type (${responseContentType}). Expected JSON or text/html containing JSON. Response: ${rawResponseText.substring(0, 200) || "No response body."}`;
         console.error(
           `[Audio Transcription Flow] Unexpected Content-Type from n8n webhook: ${responseContentType}. Expected JSON or text/html with JSON. Raw Response (first 500 chars):`,
@@ -83,19 +94,21 @@ export async function transcribeAndSummarizeAudio(
         const outerParsedResponse = JSON.parse(rawResponseText);
         console.log("[Audio Transcription Flow] Successfully parsed outer JSON response from n8n.");
 
+        // Adjusted parsing for n8n's typical nested structure
         if (Array.isArray(outerParsedResponse) && outerParsedResponse.length > 0 &&
             outerParsedResponse[0].message && typeof outerParsedResponse[0].message.content === 'string') {
             
             let contentString = outerParsedResponse[0].message.content;
             console.log("[Audio Transcription Flow] Extracted inner content string. Length:", contentString.length, "Preview:", contentString.substring(0,100) + "...");
 
+            // Remove markdown JSON block formatting if present
             if (contentString.startsWith("```json\n")) {
-                contentString = contentString.substring(7); 
+                contentString = contentString.substring(7); // "```json\n".length
             }
             if (contentString.endsWith("\n```")) {
-                contentString = contentString.substring(0, contentString.length - 4);
+                contentString = contentString.substring(0, contentString.length - 4); // "\n```".length
             } else if (contentString.endsWith("```")) {
-                 contentString = contentString.substring(0, contentString.length - 3);
+                 contentString = contentString.substring(0, contentString.length - 3); // "```".length
             }
             contentString = contentString.trim();
             console.log("[Audio Transcription Flow] Cleaned inner content string. Preview:", contentString.substring(0,100) + "...");
@@ -105,7 +118,7 @@ export async function transcribeAndSummarizeAudio(
             console.log("[Audio Transcription Flow] Successfully parsed inner JSON content.");
         } else {
             console.warn("[Audio Transcription Flow] Outer JSON from n8n not in expected nested format. Attempting direct parse of rawResponseText.");
-            parsedInnerContent = JSON.parse(rawResponseText); 
+            parsedInnerContent = JSON.parse(rawResponseText); // Fallback to parsing the whole response directly
         }
       } catch (parseError: any) {
         detail = `Failed to parse JSON response from N8N webhook. Detail: ${parseError.message}. Raw response snippet: ${rawResponseText.substring(0, 200) || "No response body."}`;
@@ -118,6 +131,7 @@ export async function transcribeAndSummarizeAudio(
       }
       
       let finalData: AudioTranscriptSummaryOutput;
+      // Handle both 'audioContentSummary' and 'transcriptSummary' keys
       if (parsedInnerContent && parsedInnerContent.audioContentSummary && typeof parsedInnerContent.audioContentSummary === 'object') {
         console.log("[Audio Transcription Flow] Found 'audioContentSummary' key. Adapting to 'transcriptSummary'.");
         finalData = { transcriptSummary: parsedInnerContent.audioContentSummary as AudioTranscriptSummary };
@@ -125,8 +139,9 @@ export async function transcribeAndSummarizeAudio(
         console.log("[Audio Transcription Flow] Found 'transcriptSummary' key directly.");
         finalData = { transcriptSummary: parsedInnerContent.transcriptSummary as AudioTranscriptSummary };
       } else {
+        // Attempt to see if the root object itself is the summary
         const keys = parsedInnerContent ? Object.keys(parsedInnerContent) : [];
-        const summaryKeys = ['title', 'summary', 'main_points', 'action_items', 'sentiment'];
+        const summaryKeys = ['title', 'summary', 'main_points', 'action_items', 'sentiment']; // Basic check
         const looksLikeSummary = summaryKeys.every(key => keys.includes(key));
 
         if (looksLikeSummary) {
@@ -141,30 +156,49 @@ export async function transcribeAndSummarizeAudio(
 
       console.log("[Audio Transcription Flow] Parsed final data from n8n webhook (after adaptation). Preview:", JSON.stringify(finalData, null, 2).substring(0, 500));
 
+      // Validate the structure of the final transcriptSummary
       if (!finalData || typeof finalData.transcriptSummary !== 'object' || finalData.transcriptSummary === null) {
           detail = "Invalid data format from N8N: 'transcriptSummary' object missing or invalid in the final adapted data.";
           console.error("[Audio Transcription Flow] Unexpected data format from n8n webhook after adaptation. 'transcriptSummary' object missing or not an object. Final Data:", finalData);
           throw new Error(detail);
       }
       
+      // Check for essential fields (optional, but good practice)
       if (typeof finalData.transcriptSummary.title !== 'string' || typeof finalData.transcriptSummary.summary !== 'string') {
-          detail = "Invalid transcriptSummary format from N8N: title or summary is not a string in the final adapted data.";
+          // This might be too strict if n8n sometimes omits these; adjust as needed
           console.warn("[Audio Transcription Flow] Received transcriptSummary, but title or summary is not a string. Final Data:", finalData.transcriptSummary);
+          // Potentially throw an error or handle as a partial success depending on requirements
+          // detail = "Invalid transcriptSummary format from N8N: title or summary is not a string in the final adapted data.";
+          // throw new Error(detail);
       }
       
       console.log("[Audio Transcription Flow] Process completed successfully.");
       return finalData;
 
     } catch (error: any) {
-      console.error("[Audio Transcription Flow] Error in n8n interaction or parsing (inner catch):", error.message);
-      const errorMessage = detail !== "An unexpected error occurred in the audio transcription flow." ? detail : (error instanceof Error ? error.message : "Unknown server error during audio transcription flow.");
-      throw new Error(errorMessage); // Re-throw to be caught by the top-level catch or Next.js
+      console.error(`[Audio Transcription Flow] Error in n8n interaction or parsing (inner catch): ${error.message}`);
+      // Ensure detail is set if it hasn't been by a more specific catch
+      if (detail === "An unexpected error occurred in the audio transcription flow." && error.message) {
+        detail = error.message;
+      }
+      // No need to throw here; the top-level catch will handle it.
+      // The 'detail' variable will be used by the top-level catch.
+      throw error; // Re-throw to be caught by the top-level catch
     }
   } catch (topLevelError: any) {
-    // This will catch errors from the initial argument validation or any other unexpected errors.
-    console.error("[Audio Transcription Flow] CRITICAL ERROR in Server Action (top-level catch):", topLevelError.message);
-    console.error("[Audio Transcription Flow] Top-level error stack:", topLevelError.stack);
-    // Ensure a standard Error object with a message is thrown.
-    throw new Error(topLevelError.message || "A critical unexpected server error occurred in audio transcription flow.");
+    console.error(`[Audio Transcription Flow] CRITICAL ERROR in Server Action (top-level catch): ${topLevelError.message}`);
+    // Log the full error object for more details if available
+    console.error("[Audio Transcription Flow] Full topLevelError object:", JSON.stringify(topLevelError, Object.getOwnPropertyNames(topLevelError)));
+    console.error("[Audio Transcription Flow] Top-level error stack (if available):", topLevelError.stack);
+    
+    // Construct a client-friendly error message
+    // Prioritize the 'detail' message if it was set by a more specific handler
+    const clientErrorMessage = detail !== "An unexpected error occurred in the audio transcription flow." ? detail
+                             : (topLevelError instanceof Error ? topLevelError.message : "A critical unexpected server error occurred in audio transcription flow.");
+                             
+    console.error("[Audio Transcription Flow] Client-facing error message to be thrown:", clientErrorMessage);
+    throw new Error(clientErrorMessage);
   }
 }
+
+    
