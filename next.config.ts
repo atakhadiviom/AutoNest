@@ -19,13 +19,14 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  api: {
+  api: { // This is for Pages Router API routes or general API handling
     bodyParser: {
-      sizeLimit: '10mb', // Increase the body size limit for API routes and Server Actions
+      sizeLimit: '10mb',
     },
+  },
+  serverActions: { // Specific configuration for Server Actions
+    bodySizeLimit: '10mb', // Increase limit for Server Actions
   },
 };
 
 export default nextConfig;
-
-    
