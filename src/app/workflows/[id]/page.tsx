@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { ComponentType} from 'react';
+import type { ComponentType } from 'react';
 import { useEffect, useState, lazy, Suspense, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { format, parseISO } from 'date-fns';
@@ -10,9 +10,9 @@ import { collection, query, where, orderBy, getDocs, Timestamp as FirestoreTimes
 import { useAuth } from '@/contexts/auth-context';
 
 import AppLayout from "@/components/layout/app-layout";
-import { mockWorkflows } from "@/components/../lib/mock-data"; 
+import { mockWorkflows } from "@/components/../lib/mock-data";
 import type { Workflow, WorkflowStep, WorkflowRunLog, AudioTranscriptSummaryOutput } from "@/lib/types";
-import type { KeywordSuggestionOutput } from '@/ai/flows/keyword-suggestion-flow'; 
+import type { KeywordSuggestionOutput } from '@/ai/flows/keyword-suggestion-flow';
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,10 +23,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Spinner } from "@/components/ui/loader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database, FileText, AlertCircleIcon, UserRoundCheck, FileAudio, CheckCircle, MessageSquare, BookOpen, Tag, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database, FileText, AlertCircleIcon, UserRoundCheck, FileAudio, CheckCircle, MessageSquare, BookOpen, Tag, Users, Link as LinkIcon } from "lucide-react";
+import Link from 'next/link'; // For external links
 
 const runnerComponents: Record<string, ComponentType<any>> = {
-  KeywordSuggesterRunner: lazy(() => 
+  KeywordSuggesterRunner: lazy(() =>
     import('@/components/tools/keyword-suggester-runner').then(module => ({ default: module.KeywordSuggesterRunner }))
   ),
   AudioTranscriberRunner: lazy(() =>
@@ -53,7 +54,7 @@ export default function WorkflowDetailsPage() {
   const [workflow, setWorkflow] = useState<Workflow | null>(null);
   const [loadingWorkflow, setLoadingWorkflow] = useState(true);
   const [RunnerComponent, setRunnerComponent] = useState<ComponentType<any> | null>(null);
-  
+
   const [runHistory, setRunHistory] = useState<WorkflowRunLog[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -80,11 +81,11 @@ export default function WorkflowDetailsPage() {
       const history: WorkflowRunLog[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        const timestamp = data.timestamp instanceof FirestoreTimestamp 
-                          ? data.timestamp 
-                          : (data.timestamp && data.timestamp.toDate) 
-                            ? data.timestamp.toDate() 
-                            : new Date(); 
+        const timestamp = data.timestamp instanceof FirestoreTimestamp
+                          ? data.timestamp
+                          : (data.timestamp && data.timestamp.toDate)
+                            ? data.timestamp.toDate()
+                            : new Date();
         history.push({ id: doc.id, ...data, timestamp } as WorkflowRunLog);
       });
       setRunHistory(history);
@@ -118,14 +119,14 @@ export default function WorkflowDetailsPage() {
     setSelectedHistoryLog(log);
     setIsHistoryDialogOpen(true);
   };
-  
+
   const handleSuccessfulRun = useCallback(() => {
-    setWorkflow(prev => prev ? ({ 
-      ...prev, 
-      usageCount: prev.usageCount + 1, 
-      lastRunDate: new Date().toISOString() 
+    setWorkflow(prev => prev ? ({
+      ...prev,
+      usageCount: prev.usageCount + 1,
+      lastRunDate: new Date().toISOString()
     }) : null);
-    fetchHistory(); 
+    fetchHistory();
   }, [fetchHistory]);
 
 
@@ -149,13 +150,13 @@ export default function WorkflowDetailsPage() {
       </AppLayout>
     );
   }
-  
+
   const IconComponent = workflow.icon || Layers;
 
   const formatFirestoreTimestamp = (timestamp: FirestoreTimestamp | Date): string => {
     if (!timestamp) return "N/A";
     const date = timestamp instanceof FirestoreTimestamp ? timestamp.toDate() : (timestamp instanceof Date ? timestamp : new Date());
-    return format(date, "PPpp 'at' HH:mm:ss"); 
+    return format(date, "PPpp 'at' HH:mm:ss");
   };
 
   const renderSummaryList = (title: string, items: string[] | undefined, icon: React.ReactNode) => {
@@ -236,11 +237,11 @@ export default function WorkflowDetailsPage() {
               {RunnerComponent && workflow.isTool ? (
                 <section id="runner-section" className="mt-4">
                   <Suspense fallback={<div className="flex justify-center items-center p-8"><Spinner size={32} /> Loading Tool...</div>}>
-                    <RunnerComponent 
-                        creditCost={workflow.creditCost} 
-                        workflowId={workflow.id} 
+                    <RunnerComponent
+                        creditCost={workflow.creditCost}
+                        workflowId={workflow.id}
                         workflowName={workflow.name}
-                        onSuccessfulRun={handleSuccessfulRun} 
+                        onSuccessfulRun={handleSuccessfulRun}
                     />
                   </Suspense>
                 </section>
@@ -279,7 +280,7 @@ export default function WorkflowDetailsPage() {
             </CardContent>
           </Card>
         </div>
-        
+
         <Card className="shadow-lg mt-8">
             <CardHeader>
                 <CardTitle className="text-xl flex items-center">
@@ -301,8 +302,8 @@ export default function WorkflowDetailsPage() {
                 <ScrollArea className="h-[400px] pr-2">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {runHistory.map((run) => (
-                      <Card 
-                        key={run.id} 
+                      <Card
+                        key={run.id}
                         className="hover:shadow-md transition-shadow cursor-pointer"
                         onClick={() => handleHistoryCardClick(run)}
                       >
@@ -364,7 +365,7 @@ export default function WorkflowDetailsPage() {
               </div>
               <Separator />
               <div>
-                <h3 className="font-semibold text-foreground mb-1">Input</h3>
+                <h3 className="font-semibold text-foreground mb-1">Input Details</h3>
                 {selectedHistoryLog.inputDetails?.topic && (
                   <p className="text-sm bg-muted p-2 rounded-md">Topic: {selectedHistoryLog.inputDetails.topic}</p>
                 )}
@@ -372,10 +373,18 @@ export default function WorkflowDetailsPage() {
                   <p className="text-sm bg-muted p-2 rounded-md">Research Query: {selectedHistoryLog.inputDetails.researchQuery}</p>
                 )}
                  {selectedHistoryLog.inputDetails?.audioFileName && (
-                    <div className="text-sm bg-muted p-2 rounded-md">
+                    <div className="text-sm bg-muted p-2 rounded-md space-y-1">
                         <p><span className="font-semibold">Audio File:</span> {selectedHistoryLog.inputDetails.audioFileName}</p>
                         {selectedHistoryLog.inputDetails.audioFileType && <p><span className="font-semibold">Type:</span> {selectedHistoryLog.inputDetails.audioFileType}</p>}
                         {selectedHistoryLog.inputDetails.audioFileSize && <p><span className="font-semibold">Size:</span> {(selectedHistoryLog.inputDetails.audioFileSize / (1024*1024)).toFixed(2)} MB</p>}
+                        {selectedHistoryLog.inputDetails.audioStorageUrl && (
+                           <p className="flex items-center">
+                             <span className="font-semibold">Stored At:</span>
+                             <Link href={selectedHistoryLog.inputDetails.audioStorageUrl} target="_blank" rel="noopener noreferrer" className="ml-1 text-primary hover:underline inline-flex items-center">
+                               View/Download Audio <LinkIcon className="ml-1 h-3 w-3" />
+                             </Link>
+                           </p>
+                        )}
                     </div>
                  )}
                 {!selectedHistoryLog.inputDetails?.topic && !selectedHistoryLog.inputDetails?.researchQuery && !selectedHistoryLog.inputDetails?.audioFileName && (

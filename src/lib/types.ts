@@ -12,10 +12,10 @@ export type Workflow = {
   id:string;
   name: string;
   description: string;
-  createdAt: string; 
-  updatedAt: string; 
+  createdAt: string;
+  updatedAt: string;
   steps: WorkflowStep[];
-  creatorEmail?: string; 
+  creatorEmail?: string;
   icon?: React.ComponentType<{ className?: string }>;
   creditCost?: number;
   usageCount: number;
@@ -24,7 +24,7 @@ export type Workflow = {
   runComponent?: string; // Specifies the React component to render for running the tool
 };
 
-// Type for the new Audio Transcription Summary
+// Type for the Audio Transcription Summary from n8n
 export interface AudioTranscriptSummary {
   title: string;
   summary: string;
@@ -52,11 +52,12 @@ export interface WorkflowRunLog {
   timestamp: Timestamp | Date; // Allow Date for client-side representation after fetch
   status: 'Completed' | 'Failed';
   inputDetails?: {
-    topic?: string;
-    researchQuery?: string;
-    audioFileName?: string;
-    audioFileType?: string;
-    audioFileSize?: number; // size in bytes
+    topic?: string; // For Keyword Suggester
+    researchQuery?: string; // Placeholder for future tools
+    audioFileName?: string; // For Audio Transcriber
+    audioFileType?: string; // For Audio Transcriber
+    audioFileSize?: number; // size in bytes, for Audio Transcriber
+    audioStorageUrl?: string; // URL to the file in Firebase Storage
   };
   outputSummary?: string;
   errorDetails?: string;

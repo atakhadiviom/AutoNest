@@ -3,26 +3,26 @@
 
 import type { FC } from "react";
 import { useState, useCallback } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { app as firebaseApp, db } from "@/lib/firebase"; // Ensure 'app' is exported and db is imported
 
 import { transcribeAndSummarizeAudio } from "@/ai/flows/audio-transcription-flow";
-import type { AudioTranscriptSummaryOutput, AudioTranscriptSummary } from "@/lib/types";
+import type { AudioTranscriptSummaryOutput, WorkflowRunLog } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge"; // Added import
+import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Mic, FileAudio, AlertCircle, Loader2, Info, CreditCard, List, CheckCircle, MessageSquare, BookOpen, Tag, Activity, Users } from "lucide-react";
+import { Mic, FileAudio, AlertCircle, Loader2, Info, CreditCard, List, CheckCircle, MessageSquare, BookOpen, Tag, Activity, Users, UploadCloud } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
-import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import type { WorkflowRunLog } from "@/lib/types";
 
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
 const ACCEPTED_AUDIO_TYPES = [
@@ -52,6 +52,8 @@ interface AudioTranscriberRunnerProps {
   onSuccessfulRun: () => void;
 }
 
+const storage = getStorage(firebaseApp);
+
 export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
   creditCost = 10,
   workflowId,
@@ -75,6 +77,7 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
     status: 'Completed' | 'Failed',
     inputFile: File | null,
     output: AudioTranscriptSummaryOutput | null,
+    audioStorageUrl?: string,
     errorMessage?: string
   ) => {
     if (!user) {
@@ -82,6 +85,16 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
       return;
     }
     try {
+      const inputDetails: WorkflowRunLog['inputDetails'] = inputFile ? {
+        audioFileName: inputFile.name,
+        audioFileType: inputFile.type,
+        audioFileSize: inputFile.size,
+      } : {};
+
+      if (audioStorageUrl) {
+        inputDetails.audioStorageUrl = audioStorageUrl;
+      }
+
       const logEntry: Omit<WorkflowRunLog, 'id' | 'timestamp'> & { timestamp: any } = {
         workflowId,
         workflowName,
@@ -89,11 +102,7 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
         userEmail: user.email,
         timestamp: serverTimestamp(),
         status,
-        inputDetails: inputFile ? {
-          audioFileName: inputFile.name,
-          audioFileType: inputFile.type,
-          audioFileSize: inputFile.size,
-        } : {},
+        inputDetails,
         creditCostAtRun: creditCost,
         ...(status === 'Completed' && output?.transcriptSummary && {
           outputSummary: `Summary generated: "${output.transcriptSummary.title}"`,
@@ -103,7 +112,7 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
       };
 
       await addDoc(collection(db, "workflowRunLogs"), logEntry);
-      console.log("Audio transcription run logged to Firestore.");
+      console.log("Audio transcription run logged to Firestore with input details:", inputDetails);
     } catch (e) {
       console.error("Error logging audio transcription run to Firestore:", e);
     }
@@ -134,24 +143,40 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
     setIsLoading(true);
     setError(null);
     setSummaryOutput(null);
+    let audioStorageUrl: string | undefined = undefined;
 
     try {
+      // 1. Upload to Firebase Storage
+      toast({ title: "Uploading audio...", description: "Please wait while your file is being uploaded.", duration: 5000 });
+      const filePath = `user_audio_uploads/${user.uid}/${workflowId}/${Date.now()}-${audioFile.name}`;
+      const fileRef = storageRef(storage, filePath);
+      
+      console.log(`[AudioTranscriberRunner] Attempting to upload to: ${filePath}`);
+      await uploadBytes(fileRef, audioFile);
+      audioStorageUrl = await getDownloadURL(fileRef);
+      console.log(`[AudioTranscriberRunner] File uploaded successfully. URL: ${audioStorageUrl}`);
+      toast({ title: "Upload Complete!", description: "Now processing your audio for transcription and summary.", duration: 5000 });
+
+      // 2. Send to n8n for transcription/summary
       const result = await transcribeAndSummarizeAudio(audioFile);
       setSummaryOutput(result);
+
+      // 3. Deduct credits & Log
       await deductCredits(creditCost);
-      await logRunToFirestore('Completed', audioFile, result);
+      await logRunToFirestore('Completed', audioFile, result, audioStorageUrl);
       onSuccessfulRun();
       toast({
         title: "Transcription & Summary Complete!",
         description: `Processed "${audioFile.name}". ${creditCost} credits used.`,
       });
-      form.reset(); // Reset form, including file input
+      form.reset();
       setSelectedFileName(null);
     } catch (e) {
-      console.error("[AudioTranscriberRunner] Error:", e);
-      const errorMessage = e instanceof Error ? e.message : "An unexpected error occurred.";
+      console.error("[AudioTranscriberRunner] Error in onSubmit:", e);
+      const errorMessage = e instanceof Error ? e.message : "An unexpected error occurred during processing.";
       setError(errorMessage);
-      await logRunToFirestore('Failed', audioFile, null, errorMessage);
+      // Log failure even if storage upload succeeded but n8n failed, or if storage failed.
+      await logRunToFirestore('Failed', audioFile, null, audioStorageUrl, errorMessage);
       toast({
         title: "Processing Failed",
         description: errorMessage,
@@ -173,7 +198,7 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
       </div>
     );
   };
-  
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files && files.length > 0) {
@@ -181,26 +206,25 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
       form.setValue("audioFile", files, { shouldValidate: true });
     } else {
       setSelectedFileName(null);
-      form.setValue("audioFile", new DataTransfer().files, { shouldValidate: true }); // Reset FileList
+      form.setValue("audioFile", new DataTransfer().files, { shouldValidate: true });
     }
   };
-
 
   return (
     <div className="space-y-6 mt-6">
       <Card className="shadow-md border-border/50">
         <CardHeader>
-          <div className="flex justify-between items-start">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
             <div>
               <CardTitle className="text-xl flex items-center">
                 <Mic className="mr-2 h-5 w-5 text-primary" />
                 Audio Transcription & Summarization
               </CardTitle>
               <CardDescription>
-                Upload an audio file (MP3, OGG, WAV, AAC, FLAC, M4A - max 15MB) to transcribe and summarize its content.
+                Upload an audio file (MP3, OGG, WAV, AAC, FLAC, M4A - max 15MB) to transcribe and summarize its content. The file will also be stored.
               </CardDescription>
             </div>
-            <Badge variant="secondary" className="flex items-center whitespace-nowrap">
+            <Badge variant="secondary" className="flex items-center whitespace-nowrap shrink-0">
               <CreditCard className="mr-1.5 h-4 w-4" /> Cost: {creditCost} Credits
             </Badge>
           </div>
@@ -211,14 +235,14 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
               <FormField
                 control={form.control}
                 name="audioFile"
-                render={({ field: { onChange, value, ...rest } }) => ( 
+                render={({ field }) => ( // We don't use field directly due to custom onChange
                   <FormItem>
                     <FormLabel>Audio File</FormLabel>
                     <FormControl>
-                       <Input 
-                          type="file" 
+                       <Input
+                          type="file"
                           accept={ACCEPTED_AUDIO_TYPES.join(",")}
-                          onChange={handleFileChange} 
+                          onChange={handleFileChange}
                           className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
                         />
                     </FormControl>
@@ -239,8 +263,8 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
                   </>
                 ) : (
                   <>
-                    <FileAudio className="mr-2 h-4 w-4" />
-                    Transcribe & Summarize
+                    <UploadCloud className="mr-2 h-4 w-4" />
+                    Upload, Transcribe & Summarize
                   </>
                 )}
               </Button>
@@ -309,7 +333,7 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
             </ScrollArea>
           </CardContent>
            <CardFooter className="text-xs text-muted-foreground pt-4">
-             Summary generated from audio.
+             Summary generated from audio. Audio file also stored.
           </CardFooter>
         </Card>
       )}
