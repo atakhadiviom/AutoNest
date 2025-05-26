@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/auth-context';
 
 import AppLayout from "@/components/layout/app-layout";
 import { mockWorkflows } from "@/components/../lib/mock-data";
-import type { Workflow, WorkflowStep, WorkflowRunLog, AudioTranscriptSummaryOutput } from "@/lib/types";
+import type { Workflow, WorkflowStep, WorkflowRunLog, AudioTranscriptSummaryOutput, BlogFactoryOutput } from "@/lib/types";
 import type { KeywordSuggestionOutput } from '@/ai/flows/keyword-suggestion-flow';
 
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Spinner } from "@/components/ui/loader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database, FileText, AlertCircleIcon, UserRoundCheck, FileAudio, CheckCircle, MessageSquare, BookOpen, Tag, Users, Link as LinkIcon } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database, FileText, AlertCircleIcon, UserRoundCheck, FileAudio, CheckCircle, MessageSquare, BookOpen, Tag, Users, Link as LinkIcon, List } from "lucide-react"; // Added List here
 import Link from 'next/link'; // For external links
 
 const runnerComponents: Record<string, ComponentType<any>> = {
@@ -43,6 +43,11 @@ function isKeywordSuggestionOutput(output: any): output is KeywordSuggestionOutp
 function isAudioTranscriptSummaryOutput(output: any): output is AudioTranscriptSummaryOutput {
   return output && typeof output.transcriptSummary === 'object' && output.transcriptSummary !== null && typeof output.transcriptSummary.title === 'string';
 }
+
+// Helper to check if output is BlogFactoryOutput - this was removed so the type guard is not needed anymore
+// function isBlogFactoryOutput(output: any): output is BlogFactoryOutput {
+//  return output && typeof output.title === 'string' && typeof output.content === 'string';
+//}
 
 
 export default function WorkflowDetailsPage() {
@@ -81,11 +86,18 @@ export default function WorkflowDetailsPage() {
       const history: WorkflowRunLog[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        const timestamp = data.timestamp instanceof FirestoreTimestamp
-                          ? data.timestamp
-                          : (data.timestamp && data.timestamp.toDate)
-                            ? data.timestamp.toDate()
-                            : new Date();
+        // Ensure timestamp is a Date object
+        let timestamp: Date;
+        if (data.timestamp instanceof FirestoreTimestamp) {
+          timestamp = data.timestamp.toDate();
+        } else if (data.timestamp && typeof data.timestamp.toDate === 'function') { // For objects from older SDK versions
+          timestamp = data.timestamp.toDate();
+        } else if (typeof data.timestamp === 'string') {
+           timestamp = new Date(data.timestamp); // Attempt to parse if string
+        } else {
+           timestamp = new Date(); // Fallback, should not happen if data is correct
+           console.warn("Timestamp was not a Firestore Timestamp or recognizable date format, used current date as fallback for log:", doc.id, data.timestamp);
+        }
         history.push({ id: doc.id, ...data, timestamp } as WorkflowRunLog);
       });
       setRunHistory(history);
@@ -123,10 +135,10 @@ export default function WorkflowDetailsPage() {
   const handleSuccessfulRun = useCallback(() => {
     setWorkflow(prev => prev ? ({
       ...prev,
-      usageCount: prev.usageCount + 1,
+      usageCount: prev.usageCount + 1, // This usageCount is local to the page, not the mock data
       lastRunDate: new Date().toISOString()
     }) : null);
-    fetchHistory();
+    fetchHistory(); // Refetch history to include the latest run
   }, [fetchHistory]);
 
 
@@ -153,14 +165,14 @@ export default function WorkflowDetailsPage() {
 
   const IconComponent = workflow.icon || Layers;
 
-  const formatFirestoreTimestamp = (timestamp: FirestoreTimestamp | Date): string => {
+  const formatFirestoreTimestampOrDate = (timestamp: FirestoreTimestamp | Date): string => {
     if (!timestamp) return "N/A";
     const date = timestamp instanceof FirestoreTimestamp ? timestamp.toDate() : (timestamp instanceof Date ? timestamp : new Date());
     return format(date, "PPpp 'at' HH:mm:ss");
   };
 
   const renderSummaryList = (title: string, items: string[] | undefined, icon: React.ReactNode) => {
-    if (!items || items.length === 0) return null;
+    if (!items || items.length === 0 || (items.length === 1 && items[0] === "Nothing found for this summary list type.")) return null;
     return (
       <div>
         <h4 className="font-semibold text-md mb-1 flex items-center">{icon} {title}</h4>
@@ -222,7 +234,7 @@ export default function WorkflowDetailsPage() {
                   </div>
                    <div className="flex items-center">
                     <UserRoundCheck className="h-4 w-4 mr-2 text-primary" />
-                    <span>Your Usage: {runHistory.length} times</span>
+                    <span>Your Usage: {historyLoading ? '...' : runHistory.length} times</span>
                   </div>
                   {workflow.lastRunDate && (
                     <div className="flex items-center">
@@ -309,18 +321,17 @@ export default function WorkflowDetailsPage() {
                       >
                         <CardHeader className="pb-3">
                           <CardTitle className="text-md flex justify-between items-center">
-                            Run: {formatFirestoreTimestamp(run.timestamp).split(' at')[0]}
+                            Run: {formatFirestoreTimestampOrDate(run.timestamp).split(' at')[0]}
                             <Badge variant={run.status === "Completed" ? "default" : "destructive"}>
                               {run.status}
                             </Badge>
                           </CardTitle>
                           <CardDescription className="text-xs">
-                            {formatFirestoreTimestamp(run.timestamp).split('at ')[1]}
+                            {formatFirestoreTimestampOrDate(run.timestamp).split('at ')[1]}
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="text-sm space-y-1 pb-4">
                           {run.inputDetails?.topic && <p><span className="font-medium">Topic:</span> {run.inputDetails.topic}</p>}
-                          {run.inputDetails?.researchQuery && <p><span className="font-medium">Query:</span> {(run.inputDetails.researchQuery as string).substring(0,50)}...</p>}
                           {run.inputDetails?.audioFileName && <p><span className="font-medium">Audio:</span> {run.inputDetails.audioFileName}</p>}
                           <p><span className="font-medium">Credits:</span> {run.creditCostAtRun}</p>
                           <p className="truncate"><span className="font-medium">Summary:</span> {run.status === 'Completed' ? run.outputSummary : run.errorDetails || 'N/A'}</p>
@@ -352,7 +363,7 @@ export default function WorkflowDetailsPage() {
                 Workflow Run Details
               </DialogTitle>
               <DialogDescription>
-                Detailed log for {selectedHistoryLog.workflowName} run on {formatFirestoreTimestamp(selectedHistoryLog.timestamp)}.
+                Detailed log for {selectedHistoryLog.workflowName} run on {formatFirestoreTimestampOrDate(selectedHistoryLog.timestamp)}.
               </DialogDescription>
             </DialogHeader>
             <ScrollArea className="max-h-[60vh] p-1 pr-3">
@@ -369,9 +380,6 @@ export default function WorkflowDetailsPage() {
                 {selectedHistoryLog.inputDetails?.topic && (
                   <p className="text-sm bg-muted p-2 rounded-md">Topic: {selectedHistoryLog.inputDetails.topic}</p>
                 )}
-                {selectedHistoryLog.inputDetails?.researchQuery && (
-                  <p className="text-sm bg-muted p-2 rounded-md">Research Query: {selectedHistoryLog.inputDetails.researchQuery}</p>
-                )}
                  {selectedHistoryLog.inputDetails?.audioFileName && (
                     <div className="text-sm bg-muted p-2 rounded-md space-y-1">
                         <p><span className="font-semibold">Audio File:</span> {selectedHistoryLog.inputDetails.audioFileName}</p>
@@ -387,8 +395,8 @@ export default function WorkflowDetailsPage() {
                         )}
                     </div>
                  )}
-                {!selectedHistoryLog.inputDetails?.topic && !selectedHistoryLog.inputDetails?.researchQuery && !selectedHistoryLog.inputDetails?.audioFileName && (
-                  <p className="text-sm text-muted-foreground">No input details recorded.</p>
+                {!selectedHistoryLog.inputDetails?.topic && !selectedHistoryLog.inputDetails?.audioFileName && (
+                  <p className="text-sm text-muted-foreground">No specific input details recorded for this run type.</p>
                 )}
               </div>
               <Separator />
@@ -440,9 +448,12 @@ export default function WorkflowDetailsPage() {
                     {!isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && !isAudioTranscriptSummaryOutput(selectedHistoryLog.fullOutput) && typeof selectedHistoryLog.fullOutput === 'string' && (
                         <pre className="text-xs bg-muted p-2 rounded-md whitespace-pre-wrap">{selectedHistoryLog.fullOutput}</pre>
                     )}
-                     {!isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && !isAudioTranscriptSummaryOutput(selectedHistoryLog.fullOutput) && typeof selectedHistoryLog.fullOutput !== 'string' && (
-                        <p className="text-sm text-muted-foreground">Output recorded (type: {typeof selectedHistoryLog.fullOutput}). No specific display for this format.</p>
+                     {!isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && !isAudioTranscriptSummaryOutput(selectedHistoryLog.fullOutput) && typeof selectedHistoryLog.fullOutput !== 'string' && selectedHistoryLog.fullOutput && (
+                        <p className="text-sm text-muted-foreground">Output recorded (type: {typeof selectedHistoryLog.fullOutput}). No specific display for this format. Summary: {selectedHistoryLog.outputSummary}</p>
                     )}
+                     {!selectedHistoryLog.fullOutput && (
+                        <p className="text-sm text-muted-foreground">No full output recorded. Summary: {selectedHistoryLog.outputSummary || 'N/A'}</p>
+                     )}
                   </>
                 ) : (
                   <Alert variant="destructive">
@@ -465,3 +476,5 @@ export default function WorkflowDetailsPage() {
     </AppLayout>
   );
 }
+
+    
