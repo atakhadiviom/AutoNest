@@ -1,7 +1,6 @@
 
 import type { Timestamp } from 'firebase/firestore';
 import type { KeywordSuggestionOutput } from '@/ai/flows/keyword-suggestion-flow';
-// BlogFactoryOutput import removed
 
 export type WorkflowStep = {
   id: string;
@@ -25,6 +24,25 @@ export type Workflow = {
   runComponent?: string; // Specifies the React component to render for running the tool
 };
 
+// Type for the new Audio Transcription Summary
+export interface AudioTranscriptSummary {
+  title: string;
+  summary: string;
+  main_points: string[];
+  action_items: string[];
+  follow_up: string[];
+  stories: string[];
+  references: string[];
+  arguments: string[];
+  related_topics: string[];
+  sentiment: string;
+}
+
+export interface AudioTranscriptSummaryOutput {
+  transcriptSummary: AudioTranscriptSummary;
+}
+
+
 export interface WorkflowRunLog {
   id?: string; // Firestore document ID, optional on creation
   workflowId: string;
@@ -33,11 +51,17 @@ export interface WorkflowRunLog {
   userEmail: string | null;
   timestamp: Timestamp | Date; // Allow Date for client-side representation after fetch
   status: 'Completed' | 'Failed';
-  inputDetails?: Record<string, any>; 
-  outputSummary?: string; 
-  errorDetails?: string; 
+  inputDetails?: {
+    topic?: string;
+    researchQuery?: string;
+    audioFileName?: string;
+    audioFileType?: string;
+    audioFileSize?: number; // size in bytes
+  };
+  outputSummary?: string;
+  errorDetails?: string;
   creditCostAtRun: number;
-  fullOutput?: KeywordSuggestionOutput['suggestions'] | string | Record<string, any>; // BlogFactoryOutput removed from union
+  fullOutput?: KeywordSuggestionOutput['suggestions'] | AudioTranscriptSummaryOutput | string | Record<string, any>;
 }
 
 // New type for displaying user data in the admin dashboard

@@ -1,6 +1,6 @@
 
 import type { Workflow } from "@/lib/types";
-import { Search } from "lucide-react"; // FileText removed as Blog Factory is removed
+import { Search, Mic } from "lucide-react"; 
 
 export const mockWorkflows: Workflow[] = [
   {
@@ -18,5 +18,19 @@ export const mockWorkflows: Workflow[] = [
     isTool: true,
     runComponent: "KeywordSuggesterRunner",
   },
-  // Other workflows could be added here
+  {
+    id: "tool-audio-transcription",
+    name: "Audio Transcription & Summarization",
+    description: "Upload an audio file to transcribe its content and generate a structured summary including main points, action items, and sentiment.",
+    createdAt: "2024-05-26T10:00:00Z",
+    updatedAt: new Date().toISOString(),
+    steps: [], // No predefined steps as it's a direct tool
+    creatorEmail: "system@autonest.com",
+    icon: Mic, 
+    creditCost: 10, // Example cost, adjust as needed
+    usageCount: 0,
+    lastRunDate: undefined,
+    isTool: true,
+    runComponent: "AudioTranscriberRunner",
+  },
 ];

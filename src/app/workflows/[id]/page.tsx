@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { ComponentType, ReactNode} from 'react';
+import type { ComponentType} from 'react';
 import { useEffect, useState, lazy, Suspense, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { format, parseISO } from 'date-fns';
@@ -10,10 +10,9 @@ import { collection, query, where, orderBy, getDocs, Timestamp as FirestoreTimes
 import { useAuth } from '@/contexts/auth-context';
 
 import AppLayout from "@/components/layout/app-layout";
-import { mockWorkflows } from "@/components/../lib/mock-data"; // Adjusted path for consistency
-import type { Workflow, WorkflowStep, WorkflowRunLog } from "@/lib/types";
+import { mockWorkflows } from "@/components/../lib/mock-data"; 
+import type { Workflow, WorkflowStep, WorkflowRunLog, AudioTranscriptSummaryOutput } from "@/lib/types";
 import type { KeywordSuggestionOutput } from '@/ai/flows/keyword-suggestion-flow'; 
-// BlogFactoryOutput removed as the tool is removed
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,18 +22,25 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/loader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database, FileText, AlertCircleIcon, UserRoundCheck } from "lucide-react"; // Newspaper removed
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database, FileText, AlertCircleIcon, UserRoundCheck, FileAudio, CheckCircle, MessageSquare, BookOpen, Tag, Users } from "lucide-react";
 
 const runnerComponents: Record<string, ComponentType<any>> = {
   KeywordSuggesterRunner: lazy(() => 
     import('@/components/tools/keyword-suggester-runner').then(module => ({ default: module.KeywordSuggesterRunner }))
   ),
-  // BlogFactoryRunner removed
+  AudioTranscriberRunner: lazy(() =>
+    import('@/components/tools/audio-transcriber-runner').then(module => ({ default: module.AudioTranscriberRunner }))
+  ),
 };
 
 // Helper to check if output is KeywordSuggestionOutput
 function isKeywordSuggestionOutput(output: any): output is KeywordSuggestionOutput['suggestions'] {
     return Array.isArray(output) && (output.length === 0 || (output[0] && typeof output[0].keyword === 'string'));
+}
+
+function isAudioTranscriptSummaryOutput(output: any): output is AudioTranscriptSummaryOutput {
+  return output && typeof output.transcriptSummary === 'object' && output.transcriptSummary !== null && typeof output.transcriptSummary.title === 'string';
 }
 
 
@@ -119,7 +125,7 @@ export default function WorkflowDetailsPage() {
       usageCount: prev.usageCount + 1, 
       lastRunDate: new Date().toISOString() 
     }) : null);
-    fetchHistory(); // Re-fetch history to include the latest run
+    fetchHistory(); 
   }, [fetchHistory]);
 
 
@@ -150,6 +156,18 @@ export default function WorkflowDetailsPage() {
     if (!timestamp) return "N/A";
     const date = timestamp instanceof FirestoreTimestamp ? timestamp.toDate() : (timestamp instanceof Date ? timestamp : new Date());
     return format(date, "PPpp 'at' HH:mm:ss"); 
+  };
+
+  const renderSummaryList = (title: string, items: string[] | undefined, icon: React.ReactNode) => {
+    if (!items || items.length === 0) return null;
+    return (
+      <div>
+        <h4 className="font-semibold text-md mb-1 flex items-center">{icon} {title}</h4>
+        <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
+          {items.map((item, index) => <li key={index}>{item}</li>)}
+        </ul>
+      </div>
+    );
   };
 
   return (
@@ -302,6 +320,7 @@ export default function WorkflowDetailsPage() {
                         <CardContent className="text-sm space-y-1 pb-4">
                           {run.inputDetails?.topic && <p><span className="font-medium">Topic:</span> {run.inputDetails.topic}</p>}
                           {run.inputDetails?.researchQuery && <p><span className="font-medium">Query:</span> {(run.inputDetails.researchQuery as string).substring(0,50)}...</p>}
+                          {run.inputDetails?.audioFileName && <p><span className="font-medium">Audio:</span> {run.inputDetails.audioFileName}</p>}
                           <p><span className="font-medium">Credits:</span> {run.creditCostAtRun}</p>
                           <p className="truncate"><span className="font-medium">Summary:</span> {run.status === 'Completed' ? run.outputSummary : run.errorDetails || 'N/A'}</p>
                         </CardContent>
@@ -352,7 +371,14 @@ export default function WorkflowDetailsPage() {
                 {selectedHistoryLog.inputDetails?.researchQuery && (
                   <p className="text-sm bg-muted p-2 rounded-md">Research Query: {selectedHistoryLog.inputDetails.researchQuery}</p>
                 )}
-                {!selectedHistoryLog.inputDetails?.topic && !selectedHistoryLog.inputDetails?.researchQuery && (
+                 {selectedHistoryLog.inputDetails?.audioFileName && (
+                    <div className="text-sm bg-muted p-2 rounded-md">
+                        <p><span className="font-semibold">Audio File:</span> {selectedHistoryLog.inputDetails.audioFileName}</p>
+                        {selectedHistoryLog.inputDetails.audioFileType && <p><span className="font-semibold">Type:</span> {selectedHistoryLog.inputDetails.audioFileType}</p>}
+                        {selectedHistoryLog.inputDetails.audioFileSize && <p><span className="font-semibold">Size:</span> {(selectedHistoryLog.inputDetails.audioFileSize / (1024*1024)).toFixed(2)} MB</p>}
+                    </div>
+                 )}
+                {!selectedHistoryLog.inputDetails?.topic && !selectedHistoryLog.inputDetails?.researchQuery && !selectedHistoryLog.inputDetails?.audioFileName && (
                   <p className="text-sm text-muted-foreground">No input details recorded.</p>
                 )}
               </div>
@@ -361,7 +387,6 @@ export default function WorkflowDetailsPage() {
                 <h3 className="font-semibold text-foreground mb-1">Output</h3>
                 {selectedHistoryLog.status === 'Completed' ? (
                   <>
-                    <p className="text-sm text-muted-foreground mb-1">{selectedHistoryLog.outputSummary}</p>
                     {isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && (
                         <Card className="bg-muted/50 p-3 text-sm">
                           <CardHeader className="p-0 pb-2">
@@ -380,12 +405,34 @@ export default function WorkflowDetailsPage() {
                           </CardContent>
                         </Card>
                     )}
-                    {/* Removed BlogFactoryOutput specific rendering */}
-                    {!isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && typeof selectedHistoryLog.fullOutput === 'string' && (
+                    {isAudioTranscriptSummaryOutput(selectedHistoryLog.fullOutput) && selectedHistoryLog.fullOutput.transcriptSummary && (
+                        <Card className="bg-muted/50 p-3 text-sm">
+                            <CardHeader className="p-0 pb-2">
+                                <CardTitle className="text-base">Transcript Summary: {selectedHistoryLog.fullOutput.transcriptSummary.title}</CardTitle>
+                                <CardDescription>Sentiment: <Badge variant={selectedHistoryLog.fullOutput.transcriptSummary.sentiment === "optimistic" ? "default" : "secondary"}>{selectedHistoryLog.fullOutput.transcriptSummary.sentiment}</Badge></CardDescription>
+                            </CardHeader>
+                            <CardContent className="p-0 space-y-3">
+                                <div>
+                                    <h4 className="font-semibold text-sm mt-2 mb-1">Full Summary:</h4>
+                                    <p className="text-xs text-muted-foreground whitespace-pre-line">{selectedHistoryLog.fullOutput.transcriptSummary.summary}</p>
+                                </div>
+                                <Accordion type="single" collapsible className="w-full text-xs">
+                                  <AccordionItem value="main-points"><AccordionTrigger className="text-xs py-2">Main Points</AccordionTrigger><AccordionContent className="pt-1 pb-2">{renderSummaryList("", selectedHistoryLog.fullOutput.transcriptSummary.main_points, <CheckCircle className="mr-2 h-3 w-3 text-green-500" />)}</AccordionContent></AccordionItem>
+                                  <AccordionItem value="action-items"><AccordionTrigger className="text-xs py-2">Action Items</AccordionTrigger><AccordionContent className="pt-1 pb-2">{renderSummaryList("", selectedHistoryLog.fullOutput.transcriptSummary.action_items, <List className="mr-2 h-3 w-3 text-blue-500" />)}</AccordionContent></AccordionItem>
+                                  <AccordionItem value="follow-up"><AccordionTrigger className="text-xs py-2">Follow Up</AccordionTrigger><AccordionContent className="pt-1 pb-2">{renderSummaryList("", selectedHistoryLog.fullOutput.transcriptSummary.follow_up, <Activity className="mr-2 h-3 w-3 text-purple-500" />)}</AccordionContent></AccordionItem>
+                                  <AccordionItem value="stories"><AccordionTrigger className="text-xs py-2">Stories</AccordionTrigger><AccordionContent className="pt-1 pb-2">{renderSummaryList("", selectedHistoryLog.fullOutput.transcriptSummary.stories, <BookOpen className="mr-2 h-3 w-3 text-orange-500" />)}</AccordionContent></AccordionItem>
+                                  <AccordionItem value="references"><AccordionTrigger className="text-xs py-2">References</AccordionTrigger><AccordionContent className="pt-1 pb-2">{renderSummaryList("", selectedHistoryLog.fullOutput.transcriptSummary.references, <Users className="mr-2 h-3 w-3 text-teal-500" />)}</AccordionContent></AccordionItem>
+                                  <AccordionItem value="arguments"><AccordionTrigger className="text-xs py-2">Arguments</AccordionTrigger><AccordionContent className="pt-1 pb-2">{renderSummaryList("", selectedHistoryLog.fullOutput.transcriptSummary.arguments, <MessageSquare className="mr-2 h-3 w-3 text-indigo-500" />)}</AccordionContent></AccordionItem>
+                                  <AccordionItem value="related-topics"><AccordionTrigger className="text-xs py-2">Related Topics</AccordionTrigger><AccordionContent className="pt-1 pb-2">{renderSummaryList("", selectedHistoryLog.fullOutput.transcriptSummary.related_topics, <Tag className="mr-2 h-3 w-3 text-pink-500" />)}</AccordionContent></AccordionItem>
+                                </Accordion>
+                            </CardContent>
+                        </Card>
+                    )}
+                    {!isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && !isAudioTranscriptSummaryOutput(selectedHistoryLog.fullOutput) && typeof selectedHistoryLog.fullOutput === 'string' && (
                         <pre className="text-xs bg-muted p-2 rounded-md whitespace-pre-wrap">{selectedHistoryLog.fullOutput}</pre>
                     )}
-                     {!isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && typeof selectedHistoryLog.fullOutput !== 'string' && (
-                        <p className="text-sm text-muted-foreground">No detailed output of known type recorded or output is complex. Output type: {typeof selectedHistoryLog.fullOutput}</p>
+                     {!isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && !isAudioTranscriptSummaryOutput(selectedHistoryLog.fullOutput) && typeof selectedHistoryLog.fullOutput !== 'string' && (
+                        <p className="text-sm text-muted-foreground">Output recorded (type: {typeof selectedHistoryLog.fullOutput}). No specific display for this format.</p>
                     )}
                   </>
                 ) : (
