@@ -19,7 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Mic, AlertCircle, Loader2, Info, CreditCard, List, CheckCircle, MessageSquare, BookOpen, Tag, Activity, Users, UploadCloud, FileAudio } from "lucide-react";
+import { AlertCircle, Loader2, Info, CreditCard, List, CheckCircle, MessageSquare, BookOpen, Tag, Activity, Users, UploadCloud, FileAudio } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
@@ -173,13 +173,13 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
         setSelectedFileName(null);
       } catch (serverActionError: any) {
         console.error(
-          "[AudioTranscriberRunner] Call to 'transcribeAndSummarizeAudio' FAILED. Raw error object received by client:",
+          "[AudioTranscriberRunner] Call to 'transcribeAndSummarizeAudio' FAILED. Error object received by client:",
           serverActionError
         );
         // Attempt to construct a more informative message
         let detailedErrorMessage = "Failed to process audio on the server. The server action returned an unexpected error.";
         if (serverActionError instanceof Error) {
-            detailedErrorMessage = serverActionError.message;
+            detailedErrorMessage = serverActionError.message; // This is likely where the generic message comes from if Next.js wraps it
         } else if (typeof serverActionError === 'string') {
             detailedErrorMessage = serverActionError;
         } else if (serverActionError && serverActionError.message) { 
@@ -187,19 +187,23 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
         } else if (serverActionError && typeof serverActionError.toString === 'function') {
             detailedErrorMessage = serverActionError.toString();
         }
+        
         // Log the properties of the serverActionError if it's an object
         if (typeof serverActionError === 'object' && serverActionError !== null) {
-            console.error("[AudioTranscriberRunner] Properties of serverActionError object:", JSON.stringify(serverActionError, Object.getOwnPropertyNames(serverActionError)));
+            console.error("[AudioTranscriberRunner] Properties of serverActionError object (stringified with Object.getOwnPropertyNames):", JSON.stringify(serverActionError, Object.getOwnPropertyNames(serverActionError)));
+             // Additional logging of common error properties
+            if ('name' in serverActionError) console.error("[AudioTranscriberRunner] serverActionError.name:", serverActionError.name);
+            if ('stack' in serverActionError) console.error("[AudioTranscriberRunner] serverActionError.stack (first 300 chars):", String(serverActionError.stack).substring(0,300));
+            if ('digest' in serverActionError) console.error("[AudioTranscriberRunner] serverActionError.digest (Next.js specific):", serverActionError.digest);
         }
-        console.error("[AudioTranscriberRunner] Constructed detailed error message from server action failure:", detailedErrorMessage);
-        // Re-throw to be caught by the outer catch, which handles UI updates and Firestore logging
+        console.error("[AudioTranscriberRunner] CHECK SERVER LOGS (Next.js console) FOR THE ORIGINAL ERROR FROM 'audio-transcription-flow.ts'.");
+        console.error("[AudioTranscriberRunner] Client-side constructed detailed error message:", detailedErrorMessage);
+        
         throw new Error(`Server processing error: ${detailedErrorMessage}`);
       }
-    } catch (e: any) { // Outer catch for overall process errors (including re-thrown server action errors)
+    } catch (e: any) { 
       console.error("[AudioTranscriberRunner] Error in onSubmit (outer catch):", e);
-      // Log the full error object `e` here as well for the outer catch, providing more structure if available.
-      // Using Object.getOwnPropertyNames helps serialize non-enumerable properties of Error objects
-      console.error("[AudioTranscriberRunner] Full error object in outer catch:", JSON.stringify(e, Object.getOwnPropertyNames(e || {})));
+      console.error("[AudioTranscriberRunner] Full error object in outer catch (stringified with Object.getOwnPropertyNames):", JSON.stringify(e, Object.getOwnPropertyNames(e || {})));
 
       const errorMessage = e instanceof Error ? e.message : "An unexpected error occurred during the process.";
       setError(errorMessage);
@@ -381,4 +385,3 @@ export const AudioTranscriberRunner: FC<AudioTranscriberRunnerProps> = ({
     </div>
   );
 };
-

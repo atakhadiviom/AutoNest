@@ -22,6 +22,7 @@ export async function transcribeAndSummarizeAudio(
   let responseStatus = 0;
   let responseStatusText = '';
   let responseContentType = '';
+  let detail = "An unexpected error occurred in the audio transcription flow."; // Default detail
 
   console.log(`[Audio Transcription Flow] Preparing to send audio file: ${audioFile.name} (${audioFile.size} bytes) to ${n8nWebhookUrl}`);
 
@@ -49,23 +50,21 @@ export async function transcribeAndSummarizeAudio(
 
 
     if (!response.ok) {
+      detail = `N8N webhook request failed with status ${responseStatus} (${responseStatusText}). Response: ${rawResponseText.substring(0, 200) || "No response body."}`;
       console.error(
         `[Audio Transcription Flow] Error from n8n webhook. Status: ${responseStatus} ${responseStatusText}. Content-Type: ${responseContentType}. Raw Response:`,
         rawResponseText.substring(0, 500) // Log first 500 chars of raw response
       );
-      throw new Error(
-        `N8N webhook request failed with status ${responseStatus} (${responseStatusText}). Response: ${rawResponseText.substring(0, 200) || "No response body."}`
-      );
+      throw new Error(detail);
     }
 
     if (!responseContentType.includes('application/json')) {
+      detail = `N8N webhook returned non-JSON content (${responseContentType}). Response: ${rawResponseText.substring(0, 200) || "No response body."}`;
       console.error(
         `[Audio Transcription Flow] Unexpected Content-Type from n8n webhook: ${responseContentType}. Expected JSON. Raw Response:`,
         rawResponseText.substring(0, 500)
       );
-      throw new Error(
-        `N8N webhook returned non-JSON content (${responseContentType}). Response: ${rawResponseText.substring(0, 200) || "No response body."}`
-      );
+      throw new Error(detail);
     }
     
     let data: AudioTranscriptSummaryOutput;
@@ -74,25 +73,26 @@ export async function transcribeAndSummarizeAudio(
         data = JSON.parse(rawResponseText) as AudioTranscriptSummaryOutput;
         console.log("[Audio Transcription Flow] Successfully parsed JSON response.");
     } catch (parseError: any) {
+        detail = `Failed to parse JSON response from N8N webhook. Detail: ${parseError.message}. Raw response: ${rawResponseText.substring(0, 200) || "No response body."}`;
         console.error(
             `[Audio Transcription Flow] Failed to parse JSON response from n8n webhook. Raw Response:`,
             rawResponseText.substring(0, 500),
             `Parse Error:`, parseError
         );
-        throw new Error(
-            `Failed to parse JSON response from N8N webhook. Detail: ${parseError.message}. Raw response: ${rawResponseText.substring(0, 200) || "No response body."}`
-        );
+        throw new Error(detail);
     }
     
     console.log("[Audio Transcription Flow] Parsed data from n8n webhook:", JSON.stringify(data, null, 2).substring(0, 500));
 
     if (!data || typeof data.transcriptSummary !== 'object' || data.transcriptSummary === null) {
+        detail = "Invalid data format from N8N: 'transcriptSummary' object missing or invalid.";
         console.error("[Audio Transcription Flow] Unexpected data format from n8n webhook. 'transcriptSummary' object missing or not an object. Data:", data);
-        throw new Error("Invalid data format: 'transcriptSummary' object missing or invalid.");
+        throw new Error(detail);
     }
     
     // Basic validation of the structure (can be expanded with Zod if needed)
     if (typeof data.transcriptSummary.title !== 'string' || typeof data.transcriptSummary.summary !== 'string') {
+        detail = "Invalid transcriptSummary format from N8N: title or summary is not a string.";
         console.warn("[Audio Transcription Flow] Received transcriptSummary, but title or summary is not a string. Data:", data.transcriptSummary);
         // Potentially throw an error or attempt to use it as is, depending on strictness
         // For now, we will proceed if title/summary are not strings, but log a warning.
@@ -106,17 +106,13 @@ export async function transcribeAndSummarizeAudio(
   } catch (error: any) {
     console.error("[Audio Transcription Flow] Error in transcription process overall:", error.message, error.stack);
     
-    let detail = "An unexpected error occurred in the audio transcription flow.";
-    if (error instanceof Error) {
-      detail = error.message;
-    } else if (typeof error === 'string') {
-      detail = error;
-    }
-    
+    // 'detail' variable should be set by the specific error in the try block if it occurred there
+    // If the error is from an earlier stage or an unknown source, 'detail' will keep its default value.
+
     const errorContext = {
-        message: detail,
+        message: detail, // Use the detail set by the specific error point
         originalErrorName: error.name,
-        originalErrorMessage: error.message,
+        originalErrorMessage: error.message, // This is the message of the 'error' object caught here
         n8nWebhookUrl,
         attemptedFileName: audioFile.name,
         responseStatusCaptured: responseStatus,
@@ -124,9 +120,11 @@ export async function transcribeAndSummarizeAudio(
         responseContentTypeCaptured: responseContentType,
         rawResponseTextPreview: rawResponseText.substring(0, 200) || "Raw response text not captured or empty before error.",
     };
-    console.error("[Audio Transcription Flow] Detailed Error Context:", errorContext);
+    console.error("[Audio Transcription Flow] Detailed Error Context (before re-throw):", errorContext);
 
-    // Re-throw a new, standard Error object with more context
-    throw new Error(`Audio transcription failed. Detail: ${detail}. Status: ${responseStatus || 'N/A'}. Raw Resp: ${rawResponseText.substring(0,100)}...`);
+    // Re-throw a new, standard Error object with a clear message.
+    // Prioritize the 'detail' if it was set by a specific failure point.
+    const finalErrorMessage = `Audio transcription failed: ${detail || error.message || "Unknown server error"}`;
+    throw new Error(finalErrorMessage);
   }
 }
