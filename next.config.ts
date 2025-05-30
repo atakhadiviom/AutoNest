@@ -17,11 +17,17 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
   experimental: {
     serverActions: {
-      bodySizeLimit: 10 * 1024 * 1024, // 10MB in bytes
+      bodySizeLimit: '10mb',
     },
   },
 };
