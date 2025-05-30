@@ -134,7 +134,7 @@ export default function LandingPage() {
               </div>
               <div className="order-1 md:order-2">
                 <Image
-                  src="https://placehold.co/600x450.png"
+                  src="https://images.unsplash.com/photo-1547637589-f54c34f5d7a4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxNHx8c3VjY2Vzc3xlbnwwfHx8fDE3NDg1OTUxODd8MA&ixlib=rb-4.1.0&q=80&w=1080"
                   alt="AutoNest Workflow Illustration"
                   width={600}
                   height={450}
