@@ -134,12 +134,12 @@ export default function LandingPage() {
               </div>
               <div className="order-1 md:order-2">
                 <Image
-                  src="https://images.unsplash.com/photo-1547637589-f54c34f5d7a4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxNHx8c3VjY2Vzc3xlbnwwfHx8fDE3NDg1OTUxODd8MA&ixlib=rb-4.1.0&q=80&w=1080"
-                  alt="AutoNest Workflow Illustration"
+                  src="https://images.unsplash.com/photo-1434725039720-aaAD693229e0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxiYWxhbmNlfGVufDB8fHx8MTc0ODM5ODQ1MXww&ixlib=rb-4.1.0&q=80&w=1080"
+                  alt="AutoNest Workflow Illustration - Balanced Rocks"
                   width={600}
                   height={450}
                   className="rounded-lg shadow-xl mx-auto"
-                  data-ai-hint="workflow automation"
+                  data-ai-hint="balance rocks"
                 />
               </div>
             </div>
