@@ -23,10 +23,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Spinner } from "@/components/ui/loader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Textarea } from '@/components/ui/textarea'; // For displaying post text
-import { Input } from '@/components/ui/input'; // For displaying image prompt
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Label } from "@/components/ui/label"; // Added Label import
 import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database, FileText, AlertCircleIcon, UserRoundCheck, FileAudio, CheckCircle, MessageSquare, BookOpen, Tag, Users, Link as LinkIcon, List, PlayCircle, Copy, Image as ImageIcon, Tags } from "lucide-react";
-import Link from 'next/link'; // For external links
+import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 
 const runnerComponents: Record<string, ComponentType<any>> = {
@@ -36,8 +37,8 @@ const runnerComponents: Record<string, ComponentType<any>> = {
   AudioTranscriberRunner: lazy(() =>
     import('@/components/tools/audio-transcriber-runner').then(module => ({ default: module.AudioTranscriberRunner }))
   ),
-  LinkedinPostGeneratorRunner: lazy(() => // Added new runner
-    import('@/components/tools/linkedin-post-generator-runner').then(module => ({ default: module.LinkedInPostGeneratorRunner })) // Corrected casing here
+  LinkedinPostGeneratorRunner: lazy(() => 
+    import('@/components/tools/linkedin-post-generator-runner').then(module => ({ default: module.LinkedInPostGeneratorRunner }))
   ),
 };
 
