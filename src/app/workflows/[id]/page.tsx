@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/auth-context';
 
 import AppLayout from "@/components/layout/app-layout";
 import { mockWorkflows } from "@/components/../lib/mock-data";
-import type { Workflow, WorkflowStep, WorkflowRunLog, AudioTranscriptSummaryOutput } from "@/lib/types";
+import type { Workflow, WorkflowStep, WorkflowRunLog, AudioTranscriptSummaryOutput, LinkedInPostGeneratorOutput } from "@/lib/types";
 import type { KeywordSuggestionOutput } from '@/ai/flows/keyword-suggestion-flow';
 
 import { Badge } from "@/components/ui/badge";
@@ -23,8 +23,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Spinner } from "@/components/ui/loader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database, FileText, AlertCircleIcon, UserRoundCheck, FileAudio, CheckCircle, MessageSquare, BookOpen, Tag, Users, Link as LinkIcon, List, PlayCircle } from "lucide-react";
+import { Textarea } from '@/components/ui/textarea'; // For displaying post text
+import { Input } from '@/components/ui/input'; // For displaying image prompt
+import { AlertTriangle, ArrowLeft, CalendarDays, Layers, ListChecks, UserCircle, CreditCard, Repeat, History, Activity, Settings2, Database, FileText, AlertCircleIcon, UserRoundCheck, FileAudio, CheckCircle, MessageSquare, BookOpen, Tag, Users, Link as LinkIcon, List, PlayCircle, Copy, Image as ImageIcon, Tags } from "lucide-react";
 import Link from 'next/link'; // For external links
+import { useToast } from '@/hooks/use-toast';
 
 const runnerComponents: Record<string, ComponentType<any>> = {
   KeywordSuggesterRunner: lazy(() =>
@@ -32,6 +35,9 @@ const runnerComponents: Record<string, ComponentType<any>> = {
   ),
   AudioTranscriberRunner: lazy(() =>
     import('@/components/tools/audio-transcriber-runner').then(module => ({ default: module.AudioTranscriberRunner }))
+  ),
+  LinkedinPostGeneratorRunner: lazy(() => // Added new runner
+    import('@/components/tools/linkedin-post-generator-runner').then(module => ({ default: module.LinkedinPostGeneratorRunner }))
   ),
 };
 
@@ -44,12 +50,17 @@ function isAudioTranscriptSummaryOutput(output: any): output is AudioTranscriptS
   return output && typeof output.transcriptSummary === 'object' && output.transcriptSummary !== null && typeof output.transcriptSummary.title === 'string';
 }
 
+function isLinkedInPostGeneratorOutput(output: any): output is LinkedInPostGeneratorOutput {
+  return output && typeof output.postText === 'string';
+}
+
 
 export default function WorkflowDetailsPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
   const { user, loading: authLoading } = useAuth();
+  const { toast } = useToast();
 
   const [workflow, setWorkflow] = useState<Workflow | null>(null);
   const [loadingWorkflow, setLoadingWorkflow] = useState(true);
@@ -134,6 +145,16 @@ export default function WorkflowDetailsPage() {
     }) : null);
     fetchHistory(); 
   }, [fetchHistory]);
+
+  const handleCopyToClipboard = async (text: string, type: string) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: "Copied!", description: `${type} copied to clipboard.` });
+    } catch (err) {
+      toast({ title: "Copy Failed", description: `Could not copy ${type}.`, variant: "destructive" });
+    }
+  };
 
 
   if (loadingWorkflow || authLoading) {
@@ -327,6 +348,7 @@ export default function WorkflowDetailsPage() {
                         <CardContent className="text-sm space-y-1 pb-4">
                           {run.inputDetails?.topic && <p><span className="font-medium">Topic:</span> {run.inputDetails.topic}</p>}
                           {run.inputDetails?.audioFileName && <p><span className="font-medium">Audio:</span> {run.inputDetails.audioFileName}</p>}
+                           {run.inputDetails?.linkedinKeyword && <p><span className="font-medium">Keyword:</span> {run.inputDetails.linkedinKeyword || 'N/A'}</p>}
                           <p><span className="font-medium">Credits:</span> {run.creditCostAtRun}</p>
                           <p className="truncate"><span className="font-medium">Summary:</span> {run.status === 'Completed' ? run.outputSummary : run.errorDetails || 'N/A'}</p>
                         </CardContent>
@@ -394,7 +416,10 @@ export default function WorkflowDetailsPage() {
                         )}
                     </div>
                  )}
-                {!selectedHistoryLog.inputDetails?.topic && !selectedHistoryLog.inputDetails?.audioFileName && (
+                 {selectedHistoryLog.inputDetails?.linkedinKeyword !== undefined && (
+                    <p className="text-sm bg-muted p-2 rounded-md">LinkedIn Keyword: {selectedHistoryLog.inputDetails.linkedinKeyword || '(Not provided)'}</p>
+                 )}
+                {!selectedHistoryLog.inputDetails?.topic && !selectedHistoryLog.inputDetails?.audioFileName && selectedHistoryLog.inputDetails?.linkedinKeyword === undefined && (
                   <p className="text-sm text-muted-foreground">No specific input details recorded for this run type.</p>
                 )}
               </div>
@@ -444,10 +469,32 @@ export default function WorkflowDetailsPage() {
                             </CardContent>
                         </Card>
                     )}
-                    {!isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && !isAudioTranscriptSummaryOutput(selectedHistoryLog.fullOutput) && typeof selectedHistoryLog.fullOutput === 'string' && (
+                    {isLinkedInPostGeneratorOutput(selectedHistoryLog.fullOutput) && (
+                        <Card className="bg-muted/50 p-3 text-sm space-y-3">
+                            <div>
+                                <Label className="text-xs font-medium flex items-center">Post Text <Button variant="ghost" size="icon" className="ml-auto h-6 w-6" onClick={() => handleCopyToClipboard(selectedHistoryLog.fullOutput!.postText, "Post text")}><Copy className="h-3 w-3" /></Button></Label>
+                                <Textarea readOnly value={selectedHistoryLog.fullOutput.postText} className="min-h-[100px] bg-background text-xs mt-1"/>
+                            </div>
+                            {selectedHistoryLog.fullOutput.suggestedImagePrompt && (
+                            <div>
+                                <Label className="text-xs font-medium flex items-center">Suggested Image Prompt <Button variant="ghost" size="icon" className="ml-auto h-6 w-6" onClick={() => handleCopyToClipboard(selectedHistoryLog.fullOutput!.suggestedImagePrompt!, "Image prompt")}><Copy className="h-3 w-3" /></Button></Label>
+                                <Input readOnly value={selectedHistoryLog.fullOutput.suggestedImagePrompt} className="bg-background text-xs mt-1"/>
+                            </div>
+                            )}
+                            {selectedHistoryLog.fullOutput.hashtags && selectedHistoryLog.fullOutput.hashtags.length > 0 && (
+                            <div>
+                                <Label className="text-xs font-medium flex items-center">Hashtags <Button variant="ghost" size="icon" className="ml-auto h-6 w-6" onClick={() => handleCopyToClipboard(selectedHistoryLog.fullOutput!.hashtags!.join(' '), "Hashtags")}><Copy className="h-3 w-3" /></Button></Label>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                {selectedHistoryLog.fullOutput.hashtags.map((tag, idx) => <Badge key={idx} variant="secondary" className="text-xs">{tag}</Badge>)}
+                                </div>
+                            </div>
+                            )}
+                        </Card>
+                    )}
+                    {!isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && !isAudioTranscriptSummaryOutput(selectedHistoryLog.fullOutput) && !isLinkedInPostGeneratorOutput(selectedHistoryLog.fullOutput) && typeof selectedHistoryLog.fullOutput === 'string' && (
                         <pre className="text-xs bg-muted p-2 rounded-md whitespace-pre-wrap">{selectedHistoryLog.fullOutput}</pre>
                     )}
-                     {!isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && !isAudioTranscriptSummaryOutput(selectedHistoryLog.fullOutput) && typeof selectedHistoryLog.fullOutput !== 'string' && selectedHistoryLog.fullOutput && (
+                     {!isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && !isAudioTranscriptSummaryOutput(selectedHistoryLog.fullOutput) && !isLinkedInPostGeneratorOutput(selectedHistoryLog.fullOutput) && typeof selectedHistoryLog.fullOutput !== 'string' && selectedHistoryLog.fullOutput && (
                         <p className="text-sm text-muted-foreground">Output recorded (type: {typeof selectedHistoryLog.fullOutput}). No specific display for this format. Summary: {selectedHistoryLog.outputSummary}</p>
                      )}
                      {!selectedHistoryLog.fullOutput && (

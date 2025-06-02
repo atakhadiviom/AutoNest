@@ -42,6 +42,13 @@ export interface AudioTranscriptSummaryOutput {
   transcriptSummary: AudioTranscriptSummary;
 }
 
+// Type for LinkedIn Post Generator Output
+export interface LinkedInPostGeneratorOutput {
+  postText: string;
+  suggestedImagePrompt?: string;
+  hashtags?: string[];
+}
+
 
 export interface WorkflowRunLog {
   id?: string; // Firestore document ID, optional on creation
@@ -58,11 +65,12 @@ export interface WorkflowRunLog {
     audioFileType?: string; // For Audio Transcriber
     audioFileSize?: number; // size in bytes, for Audio Transcriber
     audioStorageUrl?: string; // URL to the file in Firebase Storage
+    linkedinKeyword?: string; // For LinkedIn Post Generator
   };
   outputSummary?: string;
   errorDetails?: string;
   creditCostAtRun: number;
-  fullOutput?: KeywordSuggestionOutput['suggestions'] | AudioTranscriptSummaryOutput | string | Record<string, any>;
+  fullOutput?: KeywordSuggestionOutput['suggestions'] | AudioTranscriptSummaryOutput | LinkedInPostGeneratorOutput | string | Record<string, any>;
 }
 
 // New type for displaying user data in the admin dashboard

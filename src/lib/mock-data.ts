@@ -1,6 +1,6 @@
 
 import type { Workflow } from "@/lib/types";
-import { Search, Mic } from "lucide-react"; 
+import { Search, Mic, Linkedin } from "lucide-react"; 
 
 export const mockWorkflows: Workflow[] = [
   {
@@ -32,5 +32,20 @@ export const mockWorkflows: Workflow[] = [
     lastRunDate: undefined,
     isTool: true,
     runComponent: "AudioTranscriberRunner",
+  },
+  {
+    id: "tool-linkedin-post-generator",
+    name: "AI-Powered LinkedIn Post Generator",
+    description: "Generate engaging LinkedIn posts. Provide an optional keyword to leverage Google Trends & Perplexity AI for timely and relevant content.",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    steps: [],
+    creatorEmail: "system@autonest.com",
+    icon: Linkedin,
+    creditCost: 2,
+    usageCount: 0,
+    lastRunDate: undefined,
+    isTool: true,
+    runComponent: "LinkedinPostGeneratorRunner",
   },
 ];
