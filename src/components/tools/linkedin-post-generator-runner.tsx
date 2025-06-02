@@ -34,7 +34,7 @@ interface LinkedInPostGeneratorRunnerProps {
 }
 
 export const LinkedInPostGeneratorRunner: FC<LinkedInPostGeneratorRunnerProps> = ({
-  creditCost = 2, // Default credit cost
+  creditCost = 4, // Default credit cost
   workflowId,
   workflowName,
   onSuccessfulRun,

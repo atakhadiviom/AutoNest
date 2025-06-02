@@ -42,7 +42,7 @@ export const mockWorkflows: Workflow[] = [
     steps: [],
     creatorEmail: "system@autonest.com",
     icon: Linkedin,
-    creditCost: 2,
+    creditCost: 4,
     usageCount: 0,
     lastRunDate: undefined,
     isTool: true,
