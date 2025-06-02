@@ -37,7 +37,7 @@ const runnerComponents: Record<string, ComponentType<any>> = {
     import('@/components/tools/audio-transcriber-runner').then(module => ({ default: module.AudioTranscriberRunner }))
   ),
   LinkedinPostGeneratorRunner: lazy(() => // Added new runner
-    import('@/components/tools/linkedin-post-generator-runner').then(module => ({ default: module.LinkedinPostGeneratorRunner }))
+    import('@/components/tools/linkedin-post-generator-runner').then(module => ({ default: module.LinkedInPostGeneratorRunner })) // Corrected casing here
   ),
 };
 
