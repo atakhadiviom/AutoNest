@@ -10,6 +10,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     '/landing',
     '/login',
     '/signup',
+    '/forgot-password', // Added forgot-password page
     '/privacy-policy',
     '/user-agreement',
     '/blog/building-autonest',

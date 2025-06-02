@@ -9,9 +9,10 @@ import {
   User as FirebaseUser,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail as firebaseSendPasswordResetEmail, // Renamed for clarity
   signOut,
-  GoogleAuthProvider, // Added
-  signInWithPopup,      // Added
+  GoogleAuthProvider,
+  signInWithPopup,
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, updateDoc, increment, Timestamp } from "firebase/firestore";
@@ -20,8 +21,8 @@ import { useToast } from "@/hooks/use-toast";
 interface User {
   uid: string;
   email: string | null;
-  displayName?: string | null; // Added for Google Sign-In
-  photoURL?: string | null;   // Added for Google Sign-In
+  displayName?: string | null;
+  photoURL?: string | null;
   credits: number;
   isAdmin?: boolean;
 }
@@ -31,8 +32,9 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password?: string) => Promise<{ success: boolean; error?: any }>;
   signup: (email: string, password?: string) => Promise<void>;
-  signInWithGoogle: () => Promise<void>; // Added
+  signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
+  sendPasswordResetEmail: (email: string) => Promise<void>; // Added
   deductCredits: (amount: number) => Promise<void>;
   addCredits: (amount: number, updateFirestore?: boolean) => Promise<void>;
 }
@@ -196,6 +198,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const sendPasswordResetEmail = async (email: string) => {
+    try {
+      await firebaseSendPasswordResetEmail(auth, email);
+      toast({
+        title: "Password Reset Email Sent",
+        description: "If an account exists for this email, a password reset link has been sent.",
+      });
+    } catch (error: any) {
+      console.error("Firebase password reset error: ", error);
+      toast({
+        title: "Password Reset Failed",
+        description: error.message || "Could not send password reset email. Please try again.",
+        variant: "destructive",
+      });
+      throw error; // Re-throw to allow caller to handle if needed
+    }
+  };
+
   const logout = async () => {
     try {
       await signOut(auth);
@@ -277,7 +297,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, signInWithGoogle, logout, deductCredits, addCredits }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, signInWithGoogle, logout, sendPasswordResetEmail, deductCredits, addCredits }}>
       {children}
     </AuthContext.Provider>
   );

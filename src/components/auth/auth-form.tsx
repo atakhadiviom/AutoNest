@@ -20,7 +20,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAuth } from "@/contexts/auth-context";
 import { useState } from "react";
 import { Eye, EyeOff, Hexagon } from "lucide-react";
-import { Separator } from "@/components/ui/separator"; // Added for divider
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 
 interface AuthFormProps {
@@ -137,7 +137,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4"> {/* Reduced space-y-6 to space-y-4 */}
               <FormField
                 control={form.control}
                 name="email"
@@ -156,7 +156,17 @@ export function AuthForm({ mode }: AuthFormProps) {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <div className="flex items-center justify-between">
+                        <FormLabel>Password</FormLabel>
+                        {mode === "login" && (
+                        <Link
+                            href="/forgot-password"
+                            className="text-sm font-medium text-primary hover:underline"
+                        >
+                            Forgot password?
+                        </Link>
+                        )}
+                    </div>
                     <FormControl>
                       <div className="relative">
                         <Input type={showPassword ? "text" : "password"} placeholder="••••••••" {...field} />
@@ -201,7 +211,7 @@ export function AuthForm({ mode }: AuthFormProps) {
                   )}
                 />
               )}
-              <Button type="submit" className="w-full" disabled={isLoading || isGoogleLoading}>
+              <Button type="submit" className="w-full !mt-6" disabled={isLoading || isGoogleLoading}> {/* Added !mt-6 for more space before button */}
                 {isLoading ? "Processing..." : (mode === "login" ? "Log In" : "Sign Up")}
               </Button>
             </form>
