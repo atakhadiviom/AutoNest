@@ -93,18 +93,14 @@ export async function generateLinkedInPost(
     let hashtagsFromN8N: string[] | undefined = undefined;
 
     if (parsedN8nResponse.postText && typeof parsedN8nResponse.postText === 'string') {
-        // Case 1: n8n returns the ideal structure directly
         postTextFromN8N = parsedN8nResponse.postText;
         suggestedImagePromptFromN8N = parsedN8nResponse.suggestedImagePrompt;
         hashtagsFromN8N = parsedN8nResponse.hashtags;
     } else if (parsedN8nResponse["choices[0].message.content"] && typeof parsedN8nResponse["choices[0].message.content"] === 'string') {
-        // Case 2: Handle the structure observed in the error log (key is literally "choices[0].message.content")
         postTextFromN8N = parsedN8nResponse["choices[0].message.content"];
     } else if (parsedN8nResponse.choices && Array.isArray(parsedN8nResponse.choices) && parsedN8nResponse.choices.length > 0 && parsedN8nResponse.choices[0].message && typeof parsedN8nResponse.choices[0].message.content === 'string') {
-        // Case 3: n8n returns direct LLM response: {"choices": [{"message": {"content": "..."}}]}
         postTextFromN8N = parsedN8nResponse.choices[0].message.content;
     } else if (Array.isArray(parsedN8nResponse) && parsedN8nResponse.length > 0) {
-        // Case 4: n8n response is an array
         const firstItem = parsedN8nResponse[0];
         if (firstItem.postText && typeof firstItem.postText === 'string') {
             postTextFromN8N = firstItem.postText;
@@ -115,9 +111,8 @@ export async function generateLinkedInPost(
         } else if (firstItem.choices && Array.isArray(firstItem.choices) && firstItem.choices.length > 0 && firstItem.choices[0].message && typeof firstItem.choices[0].message.content === 'string') {
             postTextFromN8N = firstItem.choices[0].message.content;
         } else if (firstItem.message && typeof firstItem.message.content === 'string') {
-            // Case 5: Similar to audio, content is a stringified JSON or plain text inside a field
             let contentString = firstItem.message.content;
-            if (contentString.trim().startsWith("{") && contentString.trim().endsWith("}")) { // Check if it's stringified JSON
+            if (contentString.trim().startsWith("{") && contentString.trim().endsWith("}")) {
                 try {
                     const innerParsedContent = JSON.parse(contentString);
                     if (innerParsedContent.postText && typeof innerParsedContent.postText === 'string') {
@@ -127,10 +122,10 @@ export async function generateLinkedInPost(
                     }
                 } catch (innerParseError) {
                     console.warn("[LinkedIn Post Flow] Failed to parse inner content string as JSON, assuming plain text:", innerParseError, contentString.substring(0,100));
-                    postTextFromN8N = contentString; // Fallback to treating as plain text
+                    postTextFromN8N = contentString;
                 }
             } else {
-                postTextFromN8N = contentString; // Treat as plain text
+                postTextFromN8N = contentString;
             }
         }
     }
@@ -140,6 +135,30 @@ export async function generateLinkedInPost(
         console.error(`[LinkedIn Post Flow] Data Extraction Error:`, detail, parsedN8nResponse);
         throw new Error(detail);
     }
+
+    // Extract hashtags if not already provided and clean postText
+    if (postTextFromN8N && (!hashtagsFromN8N || hashtagsFromN8N.length === 0)) {
+        const hashtagRegex = /(#\w+)/g;
+        const foundHashtags = postTextFromN8N.match(hashtagRegex);
+        if (foundHashtags && foundHashtags.length > 0) {
+            hashtagsFromN8N = foundHashtags;
+            // Remove hashtags from the end of the postText
+            let cleanedPostText = postTextFromN8N;
+            foundHashtags.forEach(tag => {
+                // Regex to match the tag possibly surrounded by whitespace, especially at the end
+                const tagRemovalRegex = new RegExp(`\\s*${tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'gm');
+                cleanedPostText = cleanedPostText.replace(tagRemovalRegex, '').trim();
+            });
+            // If all hashtags were in one block, there might be multiple spaces, trim again
+             const hashtagBlockRegex = new RegExp(`(?:\\s*#\\w+)+$`);
+             cleanedPostText = cleanedPostText.replace(hashtagBlockRegex, '').trim();
+
+
+            postTextFromN8N = cleanedPostText;
+            console.log("[LinkedIn Post Flow] Extracted hashtags:", hashtagsFromN8N, "Cleaned post text:", postTextFromN8N.substring(0,100)+"...");
+        }
+    }
+
 
     const dataForValidation: LinkedInPostGeneratorOutputType = {
         postText: postTextFromN8N,
@@ -170,3 +189,4 @@ export async function generateLinkedInPost(
     throw new Error(`LinkedIn post generation failed: ${clientErrorMessage}`);
   }
 }
+
