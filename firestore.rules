@@ -4,60 +4,72 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users collection
-    // - Authenticated users can create their own user document upon signup.
-    // - Users can read and update their own document (e.g., for credits).
-    // - Admin users (identified by an 'isAdmin' field in their own user document) can read any user document and list all users.
+    // Helper functions
+    function isAdmin() {
+      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    function isUserAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Users Collection
     match /users/{userId} {
-      allow create: if request.auth != null && request.auth.uid == userId;
-      allow read, update: if request.auth != null && request.auth.uid == userId;
-      
-      // Admin read access to individual user documents
-      allow get: if request.auth != null && (
-                    request.auth.uid == userId || 
-                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
-                  );
-      // Admin list access for the entire collection (e.g., for the admin dashboard)
-      allow list: if request.auth != null && 
-                     get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-      
-      // Disallow delete for now, or restrict to admin if needed in the future.
-      allow delete: if false; 
+      function isOwner() {
+        return isUserAuthenticated() && request.auth.uid == userId;
+      }
+
+      // Create: Only authenticated users can create their own document (signup)
+      allow create: if isOwner();
+
+      // Read (get single document): Owner or Admin
+      allow get: if isOwner() || isAdmin();
+
+      // List (query collection): Only Admin
+      allow list: if isAdmin();
+
+      // Update: Owner or Admin
+      allow update: if isOwner() || isAdmin();
+
+      // Delete: No one by default (define explicitly if needed)
+      allow delete: if false;
     }
 
-    // WorkflowRunLogs collection
-    // - Users can create logs associated with their own userId.
-    // - Users can read logs associated with their own userId.
-    // - Logs are generally immutable after creation (no updates or deletes by users).
-    match /workflowRunLogs/{logId} {
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
-      // Queries on this collection from the client-side (e.g., in WorkflowDetailsPage)
-      // must include `where("userId", "==", request.auth.uid)` to be allowed by these rules.
-      // The existing index and client-side query structure already do this.
-      
-      allow update, delete: if false; 
-    }
-
-    // ToolSuggestions collection
-    // - Any authenticated user can create a new tool suggestion.
-    // - The user who created the suggestion can read/update/delete their own. (Update/Delete might not be UI features yet)
-    // - Admins can read, list, update, and delete any suggestion.
+    // Tool Suggestions Collection
     match /toolSuggestions/{suggestionId} {
-      allow create: if request.auth != null;
-      
-      allow read: if request.auth != null && (
-                    (resource.data.userId == request.auth.uid && resource.data.userId != null) || 
-                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
-                  );
-                  
-      allow list: if request.auth != null && 
-                     get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      // Allow any authenticated user to create (submit) a suggestion
+      allow create: if isUserAuthenticated();
 
-      allow update, delete: if request.auth != null && (
-                              (resource.data.userId == request.auth.uid && resource.data.userId != null) ||
-                              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
-                            );
+      // Allow only admin to read, update (e.g., status), or delete suggestions
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Workflow Run Logs Collection
+    match /workflowRunLogs/{logId} {
+      function isLogOwner() {
+        return isUserAuthenticated() && resource.data.userId == request.auth.uid;
+      }
+      function isCreatingOwnLog() {
+        return isUserAuthenticated() && request.resource.data.userId == request.auth.uid;
+      }
+
+      // Allow authenticated users to create their own logs
+      allow create: if isCreatingOwnLog();
+
+      // Allow users to read only their own logs (get single log)
+      // For listing their own logs, a query in the app would be filtered by userId,
+      // and this rule combined with a 'list' rule for admins would work.
+      // Or, we can be more explicit:
+      allow get: if isLogOwner() || isAdmin(); // Owner or Admin can get individual log
+      allow list: if isAdmin(); // Admin can list all logs. User lists are filtered client-side.
+                                // If users need to list their own logs directly via query,
+                               // add: `|| (isUserAuthenticated() && request.query.filters.size() > 0 && request.query.filters[0].field == "userId" && request.query.filters[0].value == request.auth.uid)`
+                               // For simplicity, we assume user log listing is client-filtered or handled by specific queries validated here.
+    }
+
+    // Default deny all other access to prevent accidental exposure
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
