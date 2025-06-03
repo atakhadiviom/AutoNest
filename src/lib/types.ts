@@ -81,3 +81,14 @@ export interface AdminUserView {
   createdAt: Date | string; // Firestore Timestamp will be converted to Date or string
   isAdmin: boolean;
 }
+
+export interface ToolSuggestion {
+  id?: string; // Firestore document ID
+  toolName: string;
+  description: string;
+  category?: string;
+  userId?: string; // if submitted by a logged-in user
+  userEmail: string; // submitter's email (can be manually entered if not logged in)
+  submittedAt: Timestamp | Date; // Firestore Timestamp on creation, Date for client-side
+  status: 'New' | 'Reviewed' | 'Planned' | 'Implemented' | 'Rejected'; // For tracking suggestion lifecycle
+}

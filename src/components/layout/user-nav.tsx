@@ -1,6 +1,7 @@
 
 "use client";
 
+import Link from "next/link"; // Added Link import
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,10 +14,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/auth-context";
-import { LogOut, User as UserIcon, Settings, MailCheck, MailWarning } from "lucide-react"; // Added MailCheck, MailWarning
+import { LogOut, User as UserIcon, Settings, MailWarning, Lightbulb } from "lucide-react"; // Added Lightbulb, removed MailCheck
 
 export function UserNav() {
-  const { user, logout, resendVerificationEmail } = useAuth(); // Added resendVerificationEmail
+  const { user, logout, resendVerificationEmail } = useAuth();
 
   if (!user) {
     return null;
@@ -59,13 +60,19 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem>
+          <DropdownMenuItem disabled>
             <UserIcon className="mr-2 h-4 w-4" />
             <span>Profile</span>
           </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem disabled>
             <Settings className="mr-2 h-4 w-4" />
             <span>Settings</span>
+          </DropdownMenuItem>
+           <DropdownMenuItem asChild>
+            <Link href="/suggest-tool">
+              <Lightbulb className="mr-2 h-4 w-4" />
+              <span>Suggest a Tool</span>
+            </Link>
           </DropdownMenuItem>
           {!user.emailVerified && (
             <DropdownMenuItem onClick={handleResendVerification}>
