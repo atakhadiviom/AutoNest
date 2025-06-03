@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/auth-context";
-import { LogOut, User as UserIcon, Settings, MailWarning, Lightbulb } from "lucide-react"; // Added Lightbulb, removed MailCheck
+import { LogOut, User as UserIcon, Settings, MailWarning, Lightbulb } from "lucide-react"; 
 
 export function UserNav() {
   const { user, logout, resendVerificationEmail } = useAuth();
@@ -41,7 +41,7 @@ export function UserNav() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-9 w-9 rounded-full">
           <Avatar className="h-9 w-9">
-            <AvatarImage src={`https://placehold.co/40x40.png?text=${getInitials(user.email)}`} alt={userEmail} data-ai-hint="user avatar" />
+            <AvatarImage src={user.photoURL || `https://placehold.co/40x40.png?text=${getInitials(user.email)}`} alt={userEmail} data-ai-hint="user avatar" />
             <AvatarFallback>{getInitials(user.email)}</AvatarFallback>
           </Avatar>
         </Button>
@@ -49,7 +49,7 @@ export function UserNav() {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">AutoNest User</p>
+            <p className="text-sm font-medium leading-none">{user.displayName || user.email?.split('@')[0] || "User"}</p>
             <p className="text-xs leading-none text-muted-foreground">
               {userEmail}
             </p>
@@ -60,9 +60,11 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem disabled>
-            <UserIcon className="mr-2 h-4 w-4" />
-            <span>Profile</span>
+          <DropdownMenuItem asChild>
+            <Link href="/profile">
+              <UserIcon className="mr-2 h-4 w-4" />
+              <span>Profile</span>
+            </Link>
           </DropdownMenuItem>
           <DropdownMenuItem disabled>
             <Settings className="mr-2 h-4 w-4" />
