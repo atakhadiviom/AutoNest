@@ -5,7 +5,7 @@ import type { SetStateAction } from "react";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, query, orderBy, Timestamp as FirestoreTimestamp, doc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, Timestamp as FirestoreTimestamp, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { useAuth } from "@/contexts/auth-context";
 import AppLayout from "@/components/layout/app-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,10 +19,11 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Users, ShieldAlert, ArrowLeft, RefreshCw, Loader2, Lightbulb, ListChecks, FileText, AlertCircleIcon, Activity, Link as LinkIcon, CheckCircle, MessageSquare, BookOpen, Tag as TagIcon, Users as UsersIcon } from "lucide-react";
-import type { AdminUserView, ToolSuggestion, WorkflowRunLog, AudioTranscriptSummaryOutput, LinkedInPostGeneratorOutput } from "@/lib/types"; 
+import { Checkbox } from "@/components/ui/checkbox";
+import { Users, ShieldAlert, ArrowLeft, RefreshCw, Loader2, Lightbulb, ListChecks, FileText, AlertCircleIcon, Activity, Link as LinkIcon, CheckCircle, MessageSquare, BookOpen, Tag as TagIcon, Users as UsersIcon, Edit, Trash2, UserPlus, Eye, EyeOff, Info } from "lucide-react";
+import type { AdminUserView, ToolSuggestion, WorkflowRunLog, AudioTranscriptSummaryOutput, LinkedInPostGeneratorOutput } from "@/lib/types";
 import type { KeywordSuggestionOutput } from '@/ai/flows/keyword-suggestion-flow';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
 
 // Helper to check if output is KeywordSuggestionOutput
@@ -58,6 +59,18 @@ export default function AdminDashboardPage() {
   const [usersList, setUsersList] = useState<AdminUserView[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [usersFetchError, setUsersFetchError] = useState<string | null>(null);
+  const [selectedUserForEdit, setSelectedUserForEdit] = useState<AdminUserView | null>(null);
+  const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false);
+  const [editUserFormData, setEditUserFormData] = useState({ credits: 0, isAdmin: false });
+  const [updatingUser, setUpdatingUser] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<AdminUserView | null>(null);
+  const [isDeleteUserDialogOpen, setIsDeleteUserDialogOpen] = useState(false);
+  const [deletingUser, setDeletingUser] = useState(false);
+  const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
+  const [createUserFormData, setCreateUserFormData] = useState({ email: "", password: "", credits: 0, isAdmin: false });
+  const [creatingUser, setCreatingUser] = useState(false);
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
+
 
   // Tool Suggestions State
   const [suggestionsList, setSuggestionsList] = useState<ToolSuggestion[]>([]);
@@ -136,7 +149,7 @@ export default function AdminDashboardPage() {
     setLoadingRunLogs(true); setRunLogsFetchError(null);
     try {
       const logsCollectionRef = collection(db, "workflowRunLogs");
-      const q = query(logsCollectionRef, orderBy("timestamp", "desc")); // Consider adding a limit
+      const q = query(logsCollectionRef, orderBy("timestamp", "desc"));
       const querySnapshot = await getDocs(q);
       const fetchedLogs: WorkflowRunLog[] = querySnapshot.docs.map(docSnap => {
         const data = docSnap.data();
@@ -172,7 +185,7 @@ export default function AdminDashboardPage() {
     setSelectedSuggestion(suggestion);
     setIsSuggestionDetailOpen(true);
   };
-  
+
   const handleOpenRunLogDetail = (log: WorkflowRunLog) => {
     setSelectedRunLog(log);
     setIsRunLogDetailOpen(true);
@@ -199,7 +212,124 @@ export default function AdminDashboardPage() {
       setUpdatingSuggestionStatus(false);
     }
   };
+
+  const handleOpenEditUserDialog = (userToEdit: AdminUserView) => {
+    setSelectedUserForEdit(userToEdit);
+    setEditUserFormData({ credits: userToEdit.credits, isAdmin: userToEdit.isAdmin });
+    setIsEditUserDialogOpen(true);
+  };
+
+  const handleEditUserFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target;
+    setEditUserFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : (name === 'credits' ? parseInt(value, 10) : value)
+    }));
+  };
+
+  const handleSaveUserChanges = async () => {
+    if (!selectedUserForEdit || !user || !user.isAdmin) {
+      toast({ title: "Error", description: "No user selected or permission denied.", variant: "destructive" });
+      return;
+    }
+    setUpdatingUser(true);
+    try {
+      const userRef = doc(db, "users", selectedUserForEdit.id);
+      await updateDoc(userRef, {
+        credits: editUserFormData.credits,
+        isAdmin: editUserFormData.isAdmin,
+      });
+      toast({ title: "User Updated", description: `${selectedUserForEdit.email}'s details have been updated.` });
+      fetchUsers(); // Refresh user list
+      setIsEditUserDialogOpen(false);
+    } catch (error: any) {
+      console.error("Error updating user:", error);
+      toast({ title: "Update Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setUpdatingUser(false);
+    }
+  };
+
+  const handleOpenDeleteUserDialog = (userToDel: AdminUserView) => {
+    setUserToDelete(userToDel);
+    setIsDeleteUserDialogOpen(true);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete || !user || !user.isAdmin) {
+      toast({ title: "Error", description: "No user selected or permission denied.", variant: "destructive" });
+      return;
+    }
+    setDeletingUser(true);
+    // This is a placeholder. Actual deletion requires Admin SDK on backend.
+    toast({
+      title: "Backend Function Required",
+      description: `Deleting user '${userToDelete.email}' (Auth & Firestore) requires a backend Cloud Function with Firebase Admin SDK privileges. This action is currently a UI placeholder.`,
+      variant: "default",
+      duration: 7000,
+    });
+    // Example: If you had a backend function, you might call it here.
+    // try {
+    //   // await callBackendDeleteUserFunction(userToDelete.id);
+    //   // toast({ title: "User Deletion Initiated", description: `Deletion process for ${userToDelete.email} has started.` });
+    //   // fetchUsers(); // Refresh list
+    // } catch (error: any) {
+    //   // toast({ title: "Deletion Failed", description: error.message, variant: "destructive" });
+    // }
+    setDeletingUser(false);
+    setIsDeleteUserDialogOpen(false);
+  };
   
+  const handleOpenCreateUserDialog = () => {
+    setCreateUserFormData({ email: "", password: "", credits: 0, isAdmin: false });
+    setShowCreatePassword(false);
+    setIsCreateUserDialogOpen(true);
+  };
+
+  const handleCreateUserFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target;
+    setCreateUserFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const handleCreateUser = async () => {
+    if (!user || !user.isAdmin) {
+      toast({ title: "Permission Denied", description: "Not authorized.", variant: "destructive" });
+      return;
+    }
+    // Basic client-side validation
+    if (!createUserFormData.email || !createUserFormData.password) {
+        toast({ title: "Validation Error", description: "Email and password are required.", variant: "destructive" });
+        return;
+    }
+    if (createUserFormData.password.length < 6) {
+        toast({ title: "Validation Error", description: "Password must be at least 6 characters.", variant: "destructive" });
+        return;
+    }
+
+    setCreatingUser(true);
+    toast({
+      title: "Backend Function Required",
+      description: `Creating user '${createUserFormData.email}' requires a backend Cloud Function with Firebase Admin SDK privileges. This form is currently a UI placeholder.`,
+      variant: "default",
+      duration: 7000,
+    });
+    // Example: If you had a backend function:
+    // try {
+    //   // await callBackendCreateUserFunction(createUserFormData);
+    //   // toast({ title: "User Creation Initiated", description: `Creation process for ${createUserFormData.email} has started.` });
+    //   // fetchUsers(); // Refresh list
+    //   // setIsCreateUserDialogOpen(false);
+    // } catch (error: any) {
+    //   // toast({ title: "Creation Failed", description: error.message, variant: "destructive" });
+    // }
+    setCreatingUser(false);
+    // Do not close dialog automatically for placeholder
+  };
+
+
   const renderSummaryList = (items: string[] | undefined, icon: React.ReactNode) => {
     if (!items || items.length === 0 || (items.length === 1 && items[0] === "Nothing found for this summary list type.")) return <p className="text-xs text-muted-foreground">Not available.</p>;
     return (
@@ -208,7 +338,6 @@ export default function AdminDashboardPage() {
       </ul>
     );
   };
-
 
   if (authLoading) {
     return <AppLayout><div className="flex justify-center items-center h-64"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div></AppLayout>;
@@ -248,8 +377,13 @@ export default function AdminDashboardPage() {
         {/* User Management Card */}
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle className="text-xl flex items-center"><Users className="mr-2 h-5 w-5 text-primary" /> User Management</CardTitle>
-            <CardDescription>List of all registered users.</CardDescription>
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-xl flex items-center"><UsersIcon className="mr-2 h-5 w-5 text-primary" /> User Management</CardTitle>
+              <Button onClick={handleOpenCreateUserDialog} variant="outline" size="sm">
+                <UserPlus className="mr-2 h-4 w-4" /> Create New User
+              </Button>
+            </div>
+            <CardDescription>List of all registered users. Edit or delete users (backend implementation required for full delete).</CardDescription>
           </CardHeader>
           <CardContent>
             {usersFetchError && <Alert variant="destructive"><ShieldAlert className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription>{usersFetchError}</AlertDescription></Alert>}
@@ -258,14 +392,30 @@ export default function AdminDashboardPage() {
             ) : usersList.length > 0 ? (
               <ScrollArea className="h-[300px]">
                 <Table>
-                  <TableHeader><TableRow><TableHead>Email</TableHead><TableHead className="text-right">Credits ($)</TableHead><TableHead>Admin?</TableHead><TableHead>Registered</TableHead></TableRow></TableHeader>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Email</TableHead>
+                      <TableHead className="text-right">Credits ($)</TableHead>
+                      <TableHead>Admin?</TableHead>
+                      <TableHead>Registered</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
                   <TableBody>
                     {usersList.map((u) => (
                       <TableRow key={u.id}>
-                        <TableCell className="font-medium">{u.email}</TableCell>
+                        <TableCell className="font-medium truncate max-w-xs">{u.email}</TableCell>
                         <TableCell className="text-right">{(u.credits / 100).toFixed(2)}</TableCell>
                         <TableCell>{u.isAdmin ? <Badge>Yes</Badge> : <Badge variant="outline">No</Badge>}</TableCell>
                         <TableCell>{formatFirestoreTimestampOrDate(u.createdAt as Date)}</TableCell>
+                        <TableCell className="text-right space-x-1">
+                          <Button variant="ghost" size="icon" onClick={() => handleOpenEditUserDialog(u)} className="h-8 w-8">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleOpenDeleteUserDialog(u)} className="h-8 w-8 text-destructive hover:text-destructive">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -274,6 +424,19 @@ export default function AdminDashboardPage() {
             ) : (<p className="text-center py-4">{usersFetchError ? "Could not load." : "No users found."}</p>)}
           </CardContent>
         </Card>
+        
+        {/* Notes on Admin Features */}
+        <Card className="shadow-lg">
+            <CardHeader>
+                <CardTitle className="text-xl flex items-center"><Info className="mr-2 h-5 w-5 text-primary" /> Admin Feature Notes</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+                <p><strong>Multi-Factor Authentication (MFA):</strong> MFA is user-enrolled via their Firebase account settings. Admins cannot directly enforce or manage MFA for users from this dashboard through client-side actions.</p>
+                <p><strong>Role-Based Access Control (RBAC):</strong> The current system uses a simple `isAdmin` boolean (true/false) stored in Firestore. For more complex roles, Firebase Custom Claims (set via Admin SDK on backend) would be required.</p>
+                <p><strong>User Activity & Audit Trails:</strong> Basic tool/workflow usage is logged in "Workflow Run Logs". Comprehensive audit trails (e.g., admin logins, specific field changes by admins) would require dedicated backend logging for each auditable action and is a potential future enhancement.</p>
+            </CardContent>
+        </Card>
+
 
         {/* Tool Suggestions Card */}
         <Card className="shadow-lg">
@@ -336,6 +499,114 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Create User Dialog */}
+      <Dialog open={isCreateUserDialogOpen} onOpenChange={setIsCreateUserDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center"><UserPlus className="mr-2 h-5 w-5 text-primary" /> Create New User</DialogTitle>
+            <DialogDescription>
+              Enter the details for the new user. Actual user creation requires backend implementation with Firebase Admin SDK.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2 pb-4">
+            <div className="space-y-2">
+              <Label htmlFor="createUser-email">Email</Label>
+              <Input id="createUser-email" name="email" type="email" value={createUserFormData.email} onChange={handleCreateUserFormChange} placeholder="user@example.com" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="createUser-password">Password</Label>
+              <div className="relative">
+                <Input id="createUser-password" name="password" type={showCreatePassword ? "text" : "password"} value={createUserFormData.password} onChange={handleCreateUserFormChange} placeholder="Min. 6 characters" />
+                <Button variant="ghost" size="icon" type="button" className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2" onClick={() => setShowCreatePassword(p => !p)}>
+                    {showCreatePassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="createUser-credits">Initial Credits</Label>
+              <Input id="createUser-credits" name="credits" type="number" value={createUserFormData.credits} onChange={handleCreateUserFormChange} />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox id="createUser-isAdmin" name="isAdmin" checked={createUserFormData.isAdmin} onCheckedChange={(checked) => setCreateUserFormData(prev => ({ ...prev, isAdmin: !!checked }))} />
+              <Label htmlFor="createUser-isAdmin" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Set as Administrator
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+            <Button onClick={handleCreateUser} disabled={creatingUser}>
+              {creatingUser ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Create User (Placeholder)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
+      {/* Edit User Dialog */}
+      {selectedUserForEdit && (
+        <Dialog open={isEditUserDialogOpen} onOpenChange={setIsEditUserDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center"><Edit className="mr-2 h-5 w-5 text-primary" /> Edit User: {selectedUserForEdit.email}</DialogTitle>
+              <DialogDescription>
+                Modify user credits and admin status. Changes to email or password require backend Admin SDK operations.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2 pb-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-credits">Credits</Label>
+                <Input id="edit-credits" name="credits" type="number" value={editUserFormData.credits} onChange={handleEditUserFormChange} />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox id="edit-isAdmin" name="isAdmin" checked={editUserFormData.isAdmin} onCheckedChange={(checked) => setEditUserFormData(prev => ({ ...prev, isAdmin: !!checked }))} />
+                <Label htmlFor="edit-isAdmin" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Administrator Status
+                </Label>
+              </div>
+              <Alert variant="default" className="mt-4 bg-muted/30">
+                <Info className="h-4 w-4" />
+                <AlertTitle>Note on Other Fields</AlertTitle>
+                <AlertDescription className="text-xs">
+                  Changing user's email, password, or disabling their account must be done through a backend process using the Firebase Admin SDK due to security permissions.
+                </AlertDescription>
+              </Alert>
+            </div>
+            <DialogFooter>
+              <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+              <Button onClick={handleSaveUserChanges} disabled={updatingUser}>
+                {updatingUser ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Delete User Dialog */}
+      {userToDelete && (
+        <Dialog open={isDeleteUserDialogOpen} onOpenChange={setIsDeleteUserDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center text-destructive"><Trash2 className="mr-2 h-5 w-5" /> Confirm Deletion</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete the user <strong className="text-foreground">{userToDelete.email}</strong>?
+                This action is a placeholder and requires a backend Cloud Function to permanently delete the user's Authentication record and Firestore data.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="sm:justify-start">
+              <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+              <Button type="button" variant="destructive" onClick={handleDeleteUser} disabled={deletingUser}>
+                {deletingUser ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Delete User (Placeholder)
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
 
       {/* Suggestion Detail Dialog */}
       {selectedSuggestion && (
@@ -453,4 +724,3 @@ export default function AdminDashboardPage() {
     </AppLayout>
   );
 }
-
