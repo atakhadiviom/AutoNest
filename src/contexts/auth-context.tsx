@@ -14,6 +14,7 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   sendEmailVerification,
+  updateProfile, // Added for profile updates
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, updateDoc, increment, Timestamp } from "firebase/firestore";
@@ -40,6 +41,7 @@ interface AuthContextType {
   deductCredits: (amount: number) => Promise<void>;
   addCredits: (amount: number, updateFirestore?: boolean) => Promise<void>;
   resendVerificationEmail: () => Promise<void>;
+  updateUserProfile: (details: { displayName?: string; photoURL?: string }) => Promise<void>; // New function
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -63,36 +65,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (userDocSnap.exists()) {
             userDataFromDb = userDocSnap.data();
-            // Check if credits should be awarded: email verified AND (initialCreditsAwarded is false OR (is undefined AND credits are 0))
             if (firebaseUser.emailVerified && 
                 (userDataFromDb.initialCreditsAwarded === false || 
                  (userDataFromDb.initialCreditsAwarded === undefined && userDataFromDb.credits === 0))) {
               needsCreditAward = true;
             }
           } else {
-            // New user: Set initial credits to 0 and initialCreditsAwarded to false
             userDataFromDb = {
               email: firebaseUser.email,
               displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "User",
               photoURL: firebaseUser.photoURL,
-              credits: 0, // Start with 0 credits
+              credits: 0, 
               createdAt: Timestamp.now(),
               isAdmin: false,
-              initialCreditsAwarded: false, // New flag
+              initialCreditsAwarded: false, 
             };
             await setDoc(userDocRef, userDataFromDb);
             console.log("New user document created in Firestore with 0 initial credits and initialCreditsAwarded=false.");
             
-            // If user verified email very quickly (e.g. social provider, or fast click)
             if (firebaseUser.emailVerified) {
                 needsCreditAward = true;
             }
             
-            // Send verification email for new email/password users
             if (!firebaseUser.emailVerified && firebaseUser.providerData.some(p => p.providerId === 'password')) {
               try {
                 await sendEmailVerification(firebaseUser);
-                // Toast for verification link is primarily handled by the signup function.
               } catch (verificationError) {
                 console.error("Error sending verification email from onAuthStateChanged for new user:", verificationError);
               }
@@ -104,8 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               credits: DEFAULT_CREDITS,
               initialCreditsAwarded: true,
             });
-            userDataFromDb.credits = DEFAULT_CREDITS; // Update local copy
-            userDataFromDb.initialCreditsAwarded = true; // Update local copy
+            userDataFromDb.credits = DEFAULT_CREDITS; 
+            userDataFromDb.initialCreditsAwarded = true; 
             toast({
               title: "Email Verified & Credits Awarded!",
               description: `Your email is verified and ${DEFAULT_CREDITS} free credits have been added to your account.`,
@@ -116,8 +113,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email,
-            displayName: firebaseUser.displayName || userDataFromDb.displayName,
-            photoURL: firebaseUser.photoURL || userDataFromDb.photoURL,
+            displayName: firebaseUser.displayName || userDataFromDb.displayName, // Prioritize Firebase Auth displayName
+            photoURL: firebaseUser.photoURL || userDataFromDb.photoURL, // Prioritize Firebase Auth photoURL
             credits: userDataFromDb.credits,
             isAdmin: userDataFromDb.isAdmin === true,
             emailVerified: firebaseUser.emailVerified,
@@ -125,13 +122,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         } catch (error) {
           console.error("Error fetching/creating/updating user document in Firestore:", error);
-          // Fallback user object on error
           setUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email,
             displayName: firebaseUser.displayName,
             photoURL: firebaseUser.photoURL,
-            credits: 0, // Default to 0 credits on error during Firestore interaction
+            credits: 0, 
             isAdmin: false,
             emailVerified: firebaseUser.emailVerified,
           });
@@ -164,7 +160,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      // User state (including credits and emailVerified status) will be updated by onAuthStateChanged
       toast({
         title: "Logged In",
         description: "Successfully logged in!",
@@ -176,7 +171,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           duration: 10000,
         });
       }
-      // If email IS verified, onAuthStateChanged will handle credit awarding toast if applicable
       return { success: true };
     } catch (error: any) {
       console.error("Firebase login error: ", error);
@@ -206,7 +200,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      // Firestore document creation with 0 credits is handled by onAuthStateChanged
       await sendEmailVerification(userCredential.user);
       toast({
         title: "Account Created!",
@@ -230,15 +223,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      // onAuthStateChanged will handle Firestore document creation/update and credit awarding if applicable
       toast({
         title: "Signed In with Google",
         description: "Successfully signed in with Google!",
       });
        if (result.user && !result.user.emailVerified) {
-         // This case is rare for Google but good to handle.
-         // No need to resend verification here typically, as Google emails are usually verified.
-         // But if not, onAuthStateChanged will reflect this.
          toast({
            title: "Verify Your Email",
            description: "Please ensure your Google account email is accessible.",
@@ -326,7 +315,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast({ title: "Insufficient Credits", description: "Not enough credits to perform this action.", variant: "destructive" });
       throw new Error("Insufficient credits");
     }
-    // console.warn("[AuthContext] deductCredits called. In production, this must be a server-side operation.");
     const userDocRef = doc(db, "users", user.uid);
     try {
       await updateDoc(userDocRef, {
@@ -356,7 +344,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const newCredits = user.credits + amount;
 
     if (updateFirestore) {
-      // console.warn("[AuthContext] addCredits called with client-side Firestore update. In production, this should be server-side.");
       const userDocRef = doc(db, "users", user.uid);
       try {
         await updateDoc(userDocRef, {
@@ -376,9 +363,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(prevUser => prevUser ? { ...prevUser, credits: newCredits } : null);
   };
 
+  const updateUserProfile = async (details: { displayName?: string; photoURL?: string }) => {
+    if (!auth.currentUser) {
+      toast({ title: "Not Authenticated", description: "No user is currently logged in.", variant: "destructive" });
+      throw new Error("User not authenticated");
+    }
+
+    // Prepare updates, filtering out undefined values
+    const authUpdates: { displayName?: string | null; photoURL?: string | null } = {};
+    if (details.displayName !== undefined) authUpdates.displayName = details.displayName || null; // Allow clearing displayName
+    if (details.photoURL !== undefined) authUpdates.photoURL = details.photoURL || null; // Allow clearing photoURL
+
+    try {
+      if (Object.keys(authUpdates).length > 0) {
+        await updateProfile(auth.currentUser, authUpdates); // Update Firebase Auth profile
+      }
+
+      // Update Firestore document
+      const userDocRef = doc(db, "users", auth.currentUser.uid);
+      const firestoreUpdates: { displayName?: string; photoURL?: string } = {};
+      if (details.displayName !== undefined) firestoreUpdates.displayName = details.displayName;
+      if (details.photoURL !== undefined) firestoreUpdates.photoURL = details.photoURL;
+      
+      if (Object.keys(firestoreUpdates).length > 0) {
+        await updateDoc(userDocRef, firestoreUpdates);
+      }
+
+      // Update local state
+      setUser(prevUser => {
+        if (!prevUser) return null;
+        return {
+          ...prevUser,
+          ...(details.displayName !== undefined && { displayName: details.displayName }),
+          ...(details.photoURL !== undefined && { photoURL: details.photoURL }),
+        };
+      });
+
+      toast({ title: "Profile Updated", description: "Your profile details have been saved." });
+    } catch (error: any) {
+      console.error("Error updating profile:", error);
+      toast({ title: "Profile Update Failed", description: error.message || "Could not update profile.", variant: "destructive" });
+      throw error;
+    }
+  };
+
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, signInWithGoogle, logout, sendPasswordResetEmail, deductCredits, addCredits, resendVerificationEmail }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      loading, 
+      login, 
+      signup, 
+      signInWithGoogle, 
+      logout, 
+      sendPasswordResetEmail, 
+      deductCredits, 
+      addCredits, 
+      resendVerificationEmail,
+      updateUserProfile // Added
+    }}>
       {children}
     </AuthContext.Provider>
   );
