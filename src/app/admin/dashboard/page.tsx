@@ -433,7 +433,8 @@ export default function AdminDashboardPage() {
             <CardContent className="space-y-3 text-sm text-muted-foreground">
                 <p><strong>Multi-Factor Authentication (MFA):</strong> MFA is user-enrolled via their Firebase account settings. Admins cannot directly enforce or manage MFA for users from this dashboard through client-side actions.</p>
                 <p><strong>Role-Based Access Control (RBAC):</strong> Access is currently managed by an <code>isAdmin</code> flag (true/false) on user profiles in Firestore. This allows for a basic Admin/User role distinction. For more granular roles or enhanced security (e.g., Editor, Viewer), implementing Firebase Custom Claims via backend functions is recommended as a future step.</p>
-                <p><strong>User Activity & Audit Trails:</strong> Basic tool/workflow usage is logged in "Workflow Run Logs". Comprehensive audit trails (e.g., admin logins, specific field changes by admins) would require dedicated backend logging for each auditable action and is a potential future enhancement.</p>
+                <p><strong>User Activity Logs:</strong> Tool and workflow usage by users is logged and can be viewed in the "Workflow Run Logs" section below. This provides a basic activity log for application usage.</p>
+                <p><strong>Comprehensive Audit Trails:</strong> For more detailed audit trails (e.g., admin login history, records of specific administrative changes like credit adjustments or role modifications), dedicated backend logging for each auditable action would need to be implemented. This is a potential future enhancement.</p>
             </CardContent>
         </Card>
 
