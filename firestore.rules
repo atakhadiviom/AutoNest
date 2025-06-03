@@ -1,31 +1,63 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Rules for the workflowRunLogs collection
-    // This allows any authenticated user to read/write to workflowRunLogs.
-    // For production, you'd want more granular control.
-    match /workflowRunLogs/{logId} {
-      allow read, write: if request.auth != null;
-      // A more secure rule for production might be:
-      // allow create: if request.auth.uid == request.resource.data.userId;
-      // allow read: if request.auth.uid == resource.data.userId;
-      // allow update, delete: if false;
+    // Users collection
+    // - Authenticated users can create their own user document upon signup.
+    // - Users can read and update their own document (e.g., for credits).
+    // - Admin users (identified by an 'isAdmin' field in their own user document) can read any user document and list all users.
+    match /users/{userId} {
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow read, update: if request.auth != null && request.auth.uid == userId;
+      
+      // Admin read access to individual user documents
+      allow get: if request.auth != null && (
+                    request.auth.uid == userId || 
+                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+                  );
+      // Admin list access for the entire collection (e.g., for the admin dashboard)
+      allow list: if request.auth != null && 
+                     get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      
+      // Disallow delete for now, or restrict to admin if needed in the future.
+      allow delete: if false; 
     }
 
-    // Rules for the users collection (for storing credits and user info)
-    match /users/{userId} {
-      // Allow a user to read their own document.
-      allow read: if request.auth != null && request.auth.uid == userId;
-      // Allow a user to create their own document (e.g., on signup).
-      allow create: if request.auth != null && request.auth.uid == userId;
-      // Allow a user to update their own document (e.g., for credit changes).
-      // WARNING: For a production application, credit updates should ideally
-      // be handled by a secure backend (e.g., Cloud Functions) to prevent tampering.
-      allow update: if request.auth != null && request.auth.uid == userId;
-      // Generally, disallow direct deletion of user documents from client.
-      allow delete: if false;
+    // WorkflowRunLogs collection
+    // - Users can create logs associated with their own userId.
+    // - Users can read logs associated with their own userId.
+    // - Logs are generally immutable after creation (no updates or deletes by users).
+    match /workflowRunLogs/{logId} {
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      // Queries on this collection from the client-side (e.g., in WorkflowDetailsPage)
+      // must include `where("userId", "==", request.auth.uid)` to be allowed by these rules.
+      // The existing index and client-side query structure already do this.
+      
+      allow update, delete: if false; 
+    }
+
+    // ToolSuggestions collection
+    // - Any authenticated user can create a new tool suggestion.
+    // - The user who created the suggestion can read/update/delete their own. (Update/Delete might not be UI features yet)
+    // - Admins can read, list, update, and delete any suggestion.
+    match /toolSuggestions/{suggestionId} {
+      allow create: if request.auth != null;
+      
+      allow read: if request.auth != null && (
+                    (resource.data.userId == request.auth.uid && resource.data.userId != null) || 
+                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+                  );
+                  
+      allow list: if request.auth != null && 
+                     get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+
+      allow update, delete: if request.auth != null && (
+                              (resource.data.userId == request.auth.uid && resource.data.userId != null) ||
+                              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+                            );
     }
   }
 }
