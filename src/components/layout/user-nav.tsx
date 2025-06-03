@@ -13,23 +13,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/auth-context";
-import { LogOut, User as UserIcon, Settings } from "lucide-react";
+import { LogOut, User as UserIcon, Settings, MailCheck, MailWarning } from "lucide-react"; // Added MailCheck, MailWarning
 
 export function UserNav() {
-  const { user, logout } = useAuth();
+  const { user, logout, resendVerificationEmail } = useAuth(); // Added resendVerificationEmail
 
   if (!user) {
     return null;
   }
 
   const getInitials = (email: string | null): string => {
-    if (!email) return "??"; // Handle null email case
+    if (!email) return "??";
     const parts = email.split('@')[0];
     if (!parts) return email.substring(0,2).toUpperCase() || "??";
     return parts.substring(0, 2).toUpperCase();
   };
   
-  const userEmail = user.email || "No email"; // Fallback for display
+  const userEmail = user.email || "No email";
+
+  const handleResendVerification = async () => {
+    await resendVerificationEmail();
+  };
 
   return (
     <DropdownMenu>
@@ -48,6 +52,9 @@ export function UserNav() {
             <p className="text-xs leading-none text-muted-foreground">
               {userEmail}
             </p>
+            <p className={`text-xs leading-none ${user.emailVerified ? 'text-green-600' : 'text-amber-600'}`}>
+              {user.emailVerified ? 'Email Verified' : 'Email Not Verified'}
+            </p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
@@ -60,6 +67,12 @@ export function UserNav() {
             <Settings className="mr-2 h-4 w-4" />
             <span>Settings</span>
           </DropdownMenuItem>
+          {!user.emailVerified && (
+            <DropdownMenuItem onClick={handleResendVerification}>
+              <MailWarning className="mr-2 h-4 w-4 text-amber-600" />
+              <span>Resend Verification</span>
+            </DropdownMenuItem>
+          )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={logout}>

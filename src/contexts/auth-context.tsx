@@ -2,17 +2,18 @@
 "use client";
 
 import type { ReactNode} from "react";
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   onAuthStateChanged,
   User as FirebaseUser,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  sendPasswordResetEmail as firebaseSendPasswordResetEmail, // Renamed for clarity
+  sendPasswordResetEmail as firebaseSendPasswordResetEmail,
   signOut,
   GoogleAuthProvider,
   signInWithPopup,
+  sendEmailVerification, // Added
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, updateDoc, increment, Timestamp } from "firebase/firestore";
@@ -25,6 +26,7 @@ interface User {
   photoURL?: string | null;
   credits: number;
   isAdmin?: boolean;
+  emailVerified: boolean; // Added
 }
 
 interface AuthContextType {
@@ -34,9 +36,10 @@ interface AuthContextType {
   signup: (email: string, password?: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
-  sendPasswordResetEmail: (email: string) => Promise<void>; // Added
+  sendPasswordResetEmail: (email: string) => Promise<void>;
   deductCredits: (amount: number) => Promise<void>;
   addCredits: (amount: number, updateFirestore?: boolean) => Promise<void>;
+  resendVerificationEmail: () => Promise<void>; // Added
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -64,9 +67,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               photoURL: firebaseUser.photoURL || userData.photoURL,
               credits: userData.credits !== undefined ? userData.credits : DEFAULT_CREDITS,
               isAdmin: userData.isAdmin === true,
+              emailVerified: firebaseUser.emailVerified, // Populate emailVerified
             });
           } else {
-            // New user (either via email/password or social sign-in like Google)
             const newUserProfile = {
               email: firebaseUser.email,
               displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "User",
@@ -78,9 +81,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await setDoc(userDocRef, newUserProfile);
             setUser({
               uid: firebaseUser.uid,
-              ...newUserProfile
+              ...newUserProfile,
+              emailVerified: firebaseUser.emailVerified, // Populate emailVerified
             });
             console.log("New user document created in Firestore with default credits and isAdmin=false.");
+             // If it's a new email/password user (not Google sign-in), emailVerified will be false initially.
+            // Send verification email here if it's a brand new user from email/password signup directly (though signup function also does it).
+            // This ensures verification is sent even if `signup` function wasn't the entry point (e.g. social sign up for first time).
+            // However, for email/password, `signup` function is more direct.
+            // For Google sign-in, email is usually pre-verified.
+            if (!firebaseUser.emailVerified && firebaseUser.providerData.some(p => p.providerId === 'password')) {
+              try {
+                await sendEmailVerification(firebaseUser);
+                toast({
+                  title: "Verify Your Email",
+                  description: `A verification email has been sent to ${firebaseUser.email}. Please check your inbox.`,
+                });
+              } catch (verificationError) {
+                console.error("Error sending verification email from onAuthStateChanged:", verificationError);
+              }
+            }
           }
         } catch (error) {
           console.error("Error fetching/creating user document in Firestore:", error);
@@ -91,6 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             photoURL: firebaseUser.photoURL,
             credits: DEFAULT_CREDITS,
             isAdmin: false,
+            emailVerified: firebaseUser.emailVerified, // Populate emailVerified
           });
           toast({
             title: "Firestore Error",
@@ -120,11 +141,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      // User state will be updated by onAuthStateChanged, which includes emailVerified status
       toast({
         title: "Logged In",
         description: "Successfully logged in!",
       });
+      if (userCredential.user && !userCredential.user.emailVerified) {
+        toast({
+          title: "Email Not Verified",
+          description: "Please verify your email to access all features. Check your inbox or spam folder. You can resend it from your user menu.",
+          duration: 7000,
+        });
+      }
       return { success: true };
     } catch (error: any) {
       console.error("Firebase login error: ", error);
@@ -155,9 +184,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       // Firestore document creation is now handled by onAuthStateChanged
+      // Send verification email
+      await sendEmailVerification(userCredential.user);
       toast({
-        title: "Account Created",
-        description: `Successfully signed up! ${DEFAULT_CREDITS} credits ($${(DEFAULT_CREDITS/100).toFixed(2)}) will be added.`,
+        title: "Account Created!",
+        description: `A verification email has been sent to ${email}. Please check your inbox/spam folder to verify your account. ${DEFAULT_CREDITS} credits will be added.`,
+        duration: 10000,
       });
     } catch (error: any) {
       console.error("Firebase signup error: ", error);
@@ -175,12 +207,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
       // onAuthStateChanged will handle Firestore document creation/update
+      // Google-provided emails are usually pre-verified.
       toast({
         title: "Signed In with Google",
         description: "Successfully signed in with Google!",
       });
+       if (result.user && !result.user.emailVerified) {
+        // This case is rare for Google but good to handle.
+         await sendEmailVerification(result.user);
+         toast({
+           title: "Verify Your Email",
+           description: "A verification email has been sent. Please check your inbox.",
+           duration: 7000,
+         });
+       }
     } catch (error: any) {
       console.error("Google sign-in error: ", error);
       let description = error.message || "Could not sign in with Google. Please try again.";
@@ -198,6 +240,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const resendVerificationEmail = async () => {
+    if (!auth.currentUser) {
+      toast({ title: "Not Logged In", description: "No user is currently logged in.", variant: "destructive" });
+      return;
+    }
+    if (auth.currentUser.emailVerified) {
+      toast({ title: "Already Verified", description: "Your email is already verified.", variant: "default" });
+      return;
+    }
+    try {
+      await sendEmailVerification(auth.currentUser);
+      toast({ title: "Verification Email Sent", description: "A new verification email has been sent. Please check your inbox (and spam folder)." });
+    } catch (error: any) {
+      console.error("Error resending verification email:", error);
+      toast({ title: "Error Sending Email", description: error.message || "Could not resend verification email.", variant: "destructive" });
+    }
+  };
+
   const sendPasswordResetEmail = async (email: string) => {
     try {
       await firebaseSendPasswordResetEmail(auth, email);
@@ -212,7 +272,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: error.message || "Could not send password reset email. Please try again.",
         variant: "destructive",
       });
-      throw error; // Re-throw to allow caller to handle if needed
+      throw error;
     }
   };
 
@@ -287,8 +347,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     } else {
-      // Firestore update was handled by server, just update local state and inform user if needed
-      if (user.credits !== newCredits) { // Avoid toast if credits didn't actually change from server's perspective
+      if (user.credits !== newCredits) {
          toast({ title: "Credits Updated", description: `Your credit balance has been updated. New balance: $${(newCredits / 100).toFixed(2)}`});
       }
     }
@@ -297,7 +356,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, signInWithGoogle, logout, sendPasswordResetEmail, deductCredits, addCredits }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, signInWithGoogle, logout, sendPasswordResetEmail, deductCredits, addCredits, resendVerificationEmail }}>
       {children}
     </AuthContext.Provider>
   );
