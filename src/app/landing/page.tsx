@@ -102,12 +102,12 @@ export default function LandingPage() {
                 </div>
                 <div className="md:w-1/2">
                     <Image 
-                         src="https://images.unsplash.com/photo-1434725039720-aaAD693229e0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxiYWxhbmNlfGVufDB8fHx8MTc0ODM5ODQ1MXww&ixlib=rb-4.1.0&q=80&w=1080"
-                         alt="AutoNest Workflow Automation - Balanced Rocks" 
+                         src="https://images.unsplash.com/photo-1591696331111-ef9586a5b17a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyMHx8YXV0b21hdGV8ZW58MHx8fHwxNzQ5Mjk4NzIxfDA&ixlib=rb-4.1.0&q=80&w=1080"
+                         alt="AutoNest Workflow Automation - Abstract gears" 
                          width={600}
                          height={400}
                          className="rounded-lg shadow-xl w-full h-auto object-cover"
-                         data-ai-hint="balanced zen rocks"
+                         data-ai-hint="automation abstract"
                          priority
                     />
                 </div>
