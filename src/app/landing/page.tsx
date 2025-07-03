@@ -244,7 +244,7 @@ export default function LandingPage() {
                     </form>
                 </div>
                  <div className="relative h-64 lg:h-full">
-                    <Image src="https://placehold.co/600x800.png" alt="Contact Abstract" layout="fill" objectFit="cover" data-ai-hint="developer coding" />
+                    <Image src="https://placehold.co/600x800.png" alt="Contact Abstract" fill className="object-cover" data-ai-hint="developer coding" />
                 </div>
             </Card>
         </Section>
