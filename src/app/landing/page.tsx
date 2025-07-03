@@ -67,7 +67,7 @@ export default function LandingPage() {
   return (
     <>
       <style jsx global>{`
-        .algosol-gradient-bg {
+        .autonest-gradient-bg {
           background-color: #f8f9fa;
           background-image:
             radial-gradient(at 4% 10%, hsla(289, 97%, 89%, 0.3) 0px, transparent 50%),
@@ -76,14 +76,14 @@ export default function LandingPage() {
             radial-gradient(at 8% 95%, hsla(139, 93%, 88%, 0.3) 0px, transparent 50%);
         }
       `}</style>
-      <div className="flex flex-col min-h-screen bg-slate-50 text-slate-800 algosol-gradient-bg">
+      <div className="flex flex-col min-h-screen bg-slate-50 text-slate-800 autonest-gradient-bg">
         {/* Navigation */}
         <nav className="bg-white/30 backdrop-blur-md sticky top-0 z-50 border-b border-white/50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
               <div className="flex-shrink-0 flex items-center">
                 <Link href="/landing" className="text-2xl font-bold text-slate-800">
-                  Algosol
+                  AutoNest
                 </Link>
               </div>
               <div className="hidden md:flex items-center space-x-6 text-sm font-medium">
@@ -138,7 +138,7 @@ export default function LandingPage() {
                 
                 <h1 className="text-8xl md:text-9xl font-black text-slate-800 tracking-tighter">TECH</h1>
                 <div className="relative inline-block w-64 h-64 md:w-80 md:h-80 -mt-12 md:-mt-16">
-                    <Image src="https://placehold.co/400x400.png" alt="AI Automation Abstract" width={400} height={400} className="w-full h-full" priority data-ai-hint="abstract AI head" />
+                    <Image src="https://images.unsplash.com/photo-1591696331111-ef9586a5b17a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyMHx8YXV0b21hdGV8ZW58MHx8fHwxNzQ5Mjk4NzIxfDA&ixlib=rb-4.1.0&q=80&w=1080" alt="AI Automation Abstract" width={400} height={400} className="w-full h-full" priority data-ai-hint="automation abstract" />
                 </div>
                 <h2 className="text-6xl md:text-7xl font-bold text-slate-600 tracking-tight -mt-12 md:-mt-16">AI AUTOMATION</h2>
 
@@ -200,7 +200,7 @@ export default function LandingPage() {
                 </div>
                 <div className="md:order-1">
                     <h3 className="text-3xl font-bold text-slate-800 mb-4">Empowering businesses through innovation.</h3>
-                    <p className="text-slate-600">At Algosol, we're on a mission to drive business growth by transforming complex challenges into opportunities for innovation and success.</p>
+                    <p className="text-slate-600">At AutoNest, we're on a mission to drive business growth by transforming complex challenges into opportunities for innovation and success.</p>
                 </div>
             </div>
         </Section>
@@ -224,9 +224,9 @@ export default function LandingPage() {
         <Section className="bg-white/20">
             <h2 className="text-center text-3xl md:text-4xl font-bold text-slate-800 mb-12">What people are saying</h2>
             <div className="grid md:grid-cols-3 gap-8">
-                <TestimonialCard name="Sarah L." role="CEO, Innovate Inc." quote="Algosol's AI integration has completely revolutionized our workflow. We're more efficient and profitable than ever." imageSrc="https://placehold.co/100x100.png" />
+                <TestimonialCard name="Sarah L." role="CEO, Innovate Inc." quote="AutoNest's AI integration has completely revolutionized our workflow. We're more efficient and profitable than ever." imageSrc="https://placehold.co/100x100.png" />
                 <TestimonialCard name="Mike R." role="Head of Marketing, Growth Co." quote="The predictive analytics tool is a game-changer. Our campaign targeting has improved by over 50%." imageSrc="https://placehold.co/100x100.png" featured />
-                <TestimonialCard name="Jessica P." role="Founder, Creative Solutions" quote="Working with the Algosol team was a breeze. They understood our vision and delivered beyond our expectations." imageSrc="https://placehold.co/100x100.png" />
+                <TestimonialCard name="Jessica P." role="Founder, Creative Solutions" quote="Working with the AutoNest team was a breeze. They understood our vision and delivered beyond our expectations." imageSrc="https://placehold.co/100x100.png" />
             </div>
         </Section>
 
@@ -254,7 +254,7 @@ export default function LandingPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
                   <div>
-                      <h3 className="text-xl font-bold text-slate-800 mb-2">Algosol</h3>
+                      <h3 className="text-xl font-bold text-slate-800 mb-2">AutoNest</h3>
                       <p className="text-sm">Fusing technology and strategy for business growth.</p>
                   </div>
                   <div>
@@ -268,7 +268,7 @@ export default function LandingPage() {
                   <div>
                       <h4 className="font-semibold text-slate-700 mb-3">Contact</h4>
                       <ul className="space-y-2 text-sm">
-                          <li className="flex items-center gap-2"><Mail className="w-4 h-4" /><span>hello@algosol.com</span></li>
+                          <li className="flex items-center gap-2"><Mail className="w-4 h-4" /><span>support@autonest.site</span></li>
                           <li className="flex items-center gap-2"><Phone className="w-4 h-4" /><span>(555) 123-4567</span></li>
                           <li className="flex items-center gap-2"><MapPin className="w-4 h-4" /><span>123 Tech Lane, CA</span></li>
                       </ul>
@@ -282,7 +282,7 @@ export default function LandingPage() {
                   </div>
               </div>
               <div className="border-t border-slate-200 mt-8 pt-8 text-center text-xs">
-                  <p>&copy; {new Date().getFullYear()} Algosol. All rights reserved.</p>
+                  <p>&copy; {new Date().getFullYear()} AutoNest. All rights reserved.</p>
               </div>
           </div>
         </footer>
