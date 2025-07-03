@@ -3,7 +3,7 @@
 
 import type { ComponentType } from 'react';
 import { useEffect, useState, lazy, Suspense, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { format, parseISO } from 'date-fns';
 import { db } from '@/lib/firebase';
 import { collection, query, where, orderBy, getDocs, Timestamp as FirestoreTimestamp } from 'firebase/firestore';
@@ -56,10 +56,9 @@ function isLinkedInPostGeneratorOutput(output: any): output is LinkedInPostGener
 }
 
 
-export default function WorkflowDetailsPage() {
+export default function WorkflowDetailsPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const params = useParams();
-  const id = params.id as string;
+  const { id } = params;
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
