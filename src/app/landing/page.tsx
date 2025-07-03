@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -104,12 +103,12 @@ export default function LandingPage() {
                     <div className="col-span-12 lg:col-span-4 flex justify-center items-center">
                          <div className="relative w-72 h-72 md:w-96 md:h-96">
                              <Image 
-                                src="https://placehold.co/600x600.png" 
+                                src="/img/Illustration.png"
                                 alt="AI Automation Abstract" 
                                 fill
                                 className="object-contain" 
                                 priority 
-                                data-ai-hint="automation abstract" 
+                                data-ai-hint="automation illustration" 
                             />
                          </div>
                     </div>
