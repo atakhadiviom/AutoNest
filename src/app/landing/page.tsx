@@ -1,10 +1,9 @@
-
 "use client";
 
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Menu, X, Star, Quote, ChevronRight, Phone, Mail, MapPin } from "lucide-react";
+import { ArrowRight, Menu, X, Quote, ChevronRight, Phone, Mail, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -122,7 +121,7 @@ export default function LandingPage() {
             <h1 className="text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter text-foreground">TECH</h1>
             <div className="relative w-full max-w-sm md:max-w-md lg:max-w-lg mx-auto my-8 md:-my-12 lg:-my-16">
               <Image 
-                src="https://placehold.co/600x600.png"
+                src="/img/Illustration.png"
                 alt="AI Automation Abstract Art"
                 width={600}
                 height={600}
