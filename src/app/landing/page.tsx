@@ -1,10 +1,9 @@
-
 "use client";
 
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Menu, X, Quote, ChevronRight, Phone, Mail, MapPin, Zap, BrainCircuit, LineChart, CreditCard, Bot, PenFancy, Search, Lock } from "lucide-react";
+import { ArrowRight, Menu, X, Quote, ChevronRight, Phone, Mail, MapPin, Zap, BrainCircuit, LineChart, CreditCard, Bot, Pen, Search, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -131,7 +130,7 @@ export default function LandingPage() {
               </div>
               <div>
                 <Image 
-                  src="https://images.unsplash.com/photo-1591696331111-ef9586a5b17a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyMHx8YXV0b21hdGV8ZW58MHx8fHwxNzQ5Mjk4NzIxfDA&ixlib=rb-4.1.0&q=80&w=1080"
+                  src="/img/Illustration.png"
                   alt="AI Automation Abstract"
                   width={600}
                   height={500}
@@ -172,7 +171,7 @@ export default function LandingPage() {
             <div className="mt-16 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[
                   { icon: Bot, title: "AI Workflow Generation", desc: "Automate complex processes with simple natural language commands using our AI builder." },
-                  { icon: PenFancy, title: "Content Creation Tools", desc: "Generate high-quality content in seconds with our advanced AI writing assistants." },
+                  { icon: Pen, title: "Content Creation Tools", desc: "Generate high-quality content in seconds with our advanced AI writing assistants." },
                   { icon: Search, title: "Keyword Research & SEO", desc: "Discover valuable keywords and optimize your content with our SEO tools." },
                   { icon: CreditCard, title: "Credit-Based Usage", desc: "Pay only for what you use with our flexible credit system." },
                   { icon: LineChart, title: "Admin Dashboard", desc: "Track usage, manage team members, and monitor workflows all in one place." },
@@ -208,7 +207,7 @@ export default function LandingPage() {
                           name: 'Samantha Lee', 
                           title: 'Marketing Director', 
                           hint: 'woman portrait', 
-                          src: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHx3b21hbiUyMHBvcnRyYWl0fGVufDB8fHx8fDE3NTE2OTgxNjJ8MA&ixlib=rb-4.1.0&q=80&w=1080',
+                          src: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHx3b21hbiUyMHBvcnRyYWl0fGVufDB8fHx8MTc1MTY5ODE2Mnww&ixlib=rb-4.1.0&q=80&w=1080',
                           quote: "AutoNest revolutionized our workflow. We're more efficient and data-driven than ever before. A true game-changer for our team."
                       },
       
