@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -215,13 +216,13 @@ export default function LandingPage() {
             <SubHeading>Real stories from businesses transformed by AutoNest.</SubHeading>
             <div className="mt-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {[
-                { name: 'Alex Johnson', title: 'CEO, Innovate Inc.', hint: 'man portrait' },
-                { name: 'Samantha Lee', title: 'Marketing Director, Growth Co.', hint: 'woman portrait' },
-                { name: 'David Chen', title: 'CTO, Tech Solutions', hint: 'person portrait' }
+                { name: 'Alex Johnson', title: 'CEO, Innovate Inc.', hint: 'man portrait', src: 'https://images.unsplash.com/photo-1624395213043-fa2e123b2656?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxtYW4lMjBwb3J0cmFpdHxlbnwwfHx8fDE3NTE2MjY0ODd8MA&ixlib=rb-4.1.0&q=80&w=1080' },
+                { name: 'Samantha Lee', title: 'Marketing Director, Growth Co.', hint: 'woman portrait', src: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHx3b21hbiUyMHBvcnRyYWl0fGVufDB8fHx8fDE3NTE2OTgxNjJ8MA&ixlib=rb-4.1.0&q=80&w=1080' },
+                { name: 'David Chen', title: 'CTO, Tech Solutions', hint: 'person portrait', src: 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxwZXJzb24lMjBwb3J0cmFpdHxlbnwwfHx8fDE3NTE3MDY0NTJ8MA&ixlib=rb-4.1.0&q=80&w=1080' }
               ].map((testimonial) => (
                 <div key={testimonial.name} className="bg-background dark:bg-card p-8 rounded-2xl shadow-lg transition-all testimonial-card">
                   <div className="flex items-center mb-4">
-                    <Image src={`https://placehold.co/64x64.png`} alt={testimonial.name} width={64} height={64} className="rounded-full" data-ai-hint={testimonial.hint} />
+                    <Image src={testimonial.src} alt={testimonial.name} width={64} height={64} className="rounded-full object-cover h-16 w-16" data-ai-hint={testimonial.hint} />
                     <div className="ml-4">
                       <p className="font-semibold text-foreground">{testimonial.name}</p>
                       <p className="text-sm text-muted-foreground">{testimonial.title}</p>
