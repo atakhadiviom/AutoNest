@@ -10,8 +10,8 @@
     --card-foreground: 215 28% 17%; /* Dark slate gray */
     --popover: 0 0% 100%; /* White */
     --popover-foreground: 215 28% 17%; /* Dark slate gray */
-    --primary: 231 48% 48%; /* #3F51B5 - Vivid Cyan (Indigo) */
-    --primary-foreground: 0 0% 100%; /* White */
+    --primary: 0 0% 85.1%; /* #D9D9D9 - Light Gray */
+    --primary-foreground: 215 28% 17%; /* Dark slate gray for contrast */
     --secondary: 210 40% 96.1%; /* Default ShadCN Secondary */
     --secondary-foreground: 222.2 47.4% 11.2%; /* Default ShadCN Secondary Foreground */
     --muted: 210 40% 96.1%;
@@ -46,8 +46,8 @@
     --card-foreground: 204 17% 95%;
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 204 17% 95%;
-    --primary: 231 48% 48%; /* #3F51B5 */
-    --primary-foreground: 0 0% 100%;
+    --primary: 0 0% 85.1%; /* #D9D9D9 - Light Gray */
+    --primary-foreground: 215 28% 17%; /* Dark slate gray for contrast */
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 204 17% 95%;
     --muted: 217.2 32.6% 17.5%;
