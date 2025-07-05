@@ -40,12 +40,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col">
       <Navbar />
       <main className="flex-grow container mx-auto px-4 py-8">
         {children}
       </main>
-      <footer className="py-6 md:px-8 md:py-0 bg-background border-t">
+      <footer className="py-6 md:px-8 md:py-0 bg-background/80 backdrop-blur-sm border-t">
         <div className="container flex flex-col items-center justify-center gap-4 md:h-24 md:flex-row">
           <p className="text-balance text-center text-sm leading-loose text-muted-foreground md:text-left">
             © {new Date().getFullYear()} AutoNest. All rights reserved.
