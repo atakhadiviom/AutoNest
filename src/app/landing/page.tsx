@@ -24,7 +24,7 @@ const Heading = ({ className, children, ...props }: React.HTMLAttributes<HTMLHea
     </h2>
 );
 
-const SubHeading = ({ className, children, ...props }: React.HTMLAttributes<p>) => (
+const SubHeading = ({ className, children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) => (
     <p className={cn("mt-4 text-lg text-muted-foreground text-center max-w-3xl mx-auto", className)} {...props}>
         {children}
     </p>
