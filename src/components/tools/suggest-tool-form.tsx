@@ -51,7 +51,7 @@ export function SuggestToolForm() {
     setIsLoading(true);
     setSubmissionError(null);
 
-    const suggestionData: Omit<ToolSuggestion, "id" | "submittedAt" | "status"> & { submittedAt: any } = {
+    const suggestionData: Omit<ToolSuggestion, "id" | "submittedAt"> & { submittedAt: any } = {
       toolName: values.toolName,
       description: values.description,
       category: values.category || undefined,

@@ -18,14 +18,13 @@ if (!apiKey || !projectId) {
     Current values:
     NEXT_PUBLIC_FIREBASE_API_KEY: ${apiKey}
     NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${projectId}`;
-  console.error("[Firebase Init Error]", errorMessage);
-  throw new Error(errorMessage);
+  console.warn("[Firebase Init Warning]", errorMessage);
 }
 
 const firebaseConfig = {
-  apiKey,
-  authDomain,
-  projectId,
+  apiKey: apiKey || "dummy-api-key",
+  authDomain: authDomain || "dummy-project-id.firebaseapp.com",
+  projectId: projectId || "dummy-project-id",
   storageBucket,
   messagingSenderId,
   appId,

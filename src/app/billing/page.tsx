@@ -317,15 +317,15 @@ export default function BillingPage() {
 
 
   const scriptProviderOptions = {
-      "client-id": PAYPAL_CLIENT_ID, // Use LIVE Client ID from .env
+      clientId: PAYPAL_CLIENT_ID, // Use LIVE Client ID from .env
       currency: "USD",
-      "enable-funding": "card", 
-      "disable-funding": "venmo,paylater", 
-      "buyer-country": "US", 
+      enableFunding: "card", 
+      disableFunding: "venmo,paylater", 
+      buyerCountry: "US", 
       components: "buttons", 
   };
 
-  console.log("[BillingPage] PAYPAL_CLIENT_ID for Provider (should be LIVE):", scriptProviderOptions["client-id"]);
+  console.log("[BillingPage] PAYPAL_CLIENT_ID for Provider (should be LIVE):", scriptProviderOptions.clientId);
   console.log("[BillingPage] scriptProviderOptions for Provider:", scriptProviderOptions);
 
 

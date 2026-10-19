@@ -3,7 +3,7 @@
 
 import type { ComponentType } from 'react';
 import { useEffect, useState, lazy, Suspense, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { format, parseISO } from 'date-fns';
 import { db } from '@/lib/firebase';
 import { collection, query, where, orderBy, getDocs, Timestamp as FirestoreTimestamp } from 'firebase/firestore';
@@ -56,9 +56,10 @@ function isLinkedInPostGeneratorOutput(output: any): output is LinkedInPostGener
 }
 
 
-export default function WorkflowDetailsPage({ params }: { params: { id: string } }) {
+export default function WorkflowDetailsPage({ params: _params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  const { id } = params;
+  const routeParams = useParams();
+  const id = typeof routeParams?.id === 'string' ? routeParams.id : '';
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
@@ -469,28 +470,31 @@ export default function WorkflowDetailsPage({ params }: { params: { id: string }
                             </CardContent>
                         </Card>
                     )}
-                    {isLinkedInPostGeneratorOutput(selectedHistoryLog.fullOutput) && (
+                    {isLinkedInPostGeneratorOutput(selectedHistoryLog.fullOutput) && (() => {
+                        const output = selectedHistoryLog.fullOutput;
+                        return (
                         <Card className="bg-muted/50 p-3 text-sm space-y-3">
                             <div>
-                                <Label className="text-xs font-medium flex items-center">Post Text <Button variant="ghost" size="icon" className="ml-auto h-6 w-6" onClick={() => handleCopyToClipboard(selectedHistoryLog.fullOutput!.postText, "Post text")}><Copy className="h-3 w-3" /></Button></Label>
-                                <Textarea readOnly value={selectedHistoryLog.fullOutput.postText} className="min-h-[100px] bg-background text-xs mt-1"/>
+                                <Label className="text-xs font-medium flex items-center">Post Text <Button variant="ghost" size="icon" className="ml-auto h-6 w-6" onClick={() => handleCopyToClipboard(output.postText, "Post text")}><Copy className="h-3 w-3" /></Button></Label>
+                                <Textarea readOnly value={output.postText} className="min-h-[100px] bg-background text-xs mt-1"/>
                             </div>
-                            {selectedHistoryLog.fullOutput.suggestedImagePrompt && (
+                            {output.suggestedImagePrompt && (
                             <div>
-                                <Label className="text-xs font-medium flex items-center">Suggested Image Prompt <Button variant="ghost" size="icon" className="ml-auto h-6 w-6" onClick={() => handleCopyToClipboard(selectedHistoryLog.fullOutput!.suggestedImagePrompt!, "Image prompt")}><Copy className="h-3 w-3" /></Button></Label>
-                                <Input readOnly value={selectedHistoryLog.fullOutput.suggestedImagePrompt} className="bg-background text-xs mt-1"/>
+                                <Label className="text-xs font-medium flex items-center">Suggested Image Prompt <Button variant="ghost" size="icon" className="ml-auto h-6 w-6" onClick={() => handleCopyToClipboard(output.suggestedImagePrompt!, "Image prompt")}><Copy className="h-3 w-3" /></Button></Label>
+                                <Input readOnly value={output.suggestedImagePrompt} className="bg-background text-xs mt-1"/>
                             </div>
                             )}
-                            {selectedHistoryLog.fullOutput.hashtags && selectedHistoryLog.fullOutput.hashtags.length > 0 && (
+                            {output.hashtags && output.hashtags.length > 0 && (
                             <div>
-                                <Label className="text-xs font-medium flex items-center">Hashtags <Button variant="ghost" size="icon" className="ml-auto h-6 w-6" onClick={() => handleCopyToClipboard(selectedHistoryLog.fullOutput!.hashtags!.join(' '), "Hashtags")}><Copy className="h-3 w-3" /></Button></Label>
+                                <Label className="text-xs font-medium flex items-center">Hashtags <Button variant="ghost" size="icon" className="ml-auto h-6 w-6" onClick={() => handleCopyToClipboard(output.hashtags!.join(' '), "Hashtags")}><Copy className="h-3 w-3" /></Button></Label>
                                 <div className="mt-1 flex flex-wrap gap-1">
-                                {selectedHistoryLog.fullOutput.hashtags.map((tag, idx) => <Badge key={idx} variant="secondary" className="text-xs">{tag}</Badge>)}
+                                {output.hashtags.map((tag, idx) => <Badge key={idx} variant="secondary" className="text-xs">{tag}</Badge>)}
                                 </div>
                             </div>
                             )}
                         </Card>
-                    )}
+                        );
+                    })()}
                     {!isKeywordSuggestionOutput(selectedHistoryLog.fullOutput) && !isAudioTranscriptSummaryOutput(selectedHistoryLog.fullOutput) && !isLinkedInPostGeneratorOutput(selectedHistoryLog.fullOutput) && typeof selectedHistoryLog.fullOutput === 'string' && (
                         <pre className="text-xs bg-muted p-2 rounded-md whitespace-pre-wrap">{selectedHistoryLog.fullOutput}</pre>
                     )}

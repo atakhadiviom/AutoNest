@@ -60,6 +60,7 @@ autonest-vn4w5-firebase-adminsdk-fbsvc-96861eb71c.json
 dist
 dist-ssr
 *.patch
+*.tsbuildinfo
 /functions/lib
 /functions/node_modules
 /functions/.env
